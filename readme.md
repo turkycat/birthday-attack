@@ -1,6 +1,8 @@
-# utxo-build
+# birthday attack
 
-an exploratory script to build the UTXO set from RPC commands
+an exploratory script to build the UTXO set from RPC commands and attempt to collide by randomizing private keys
+
+yes, I know it's basically impossible. should be fun, though
 
 ## dependencies
 
