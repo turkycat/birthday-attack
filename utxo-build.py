@@ -71,19 +71,27 @@ def process_transactions(transactions, block_hash):
             utxo_set[new_output_key] = output["scriptPubKey"]
 
 # TODO batch RPC calls to bitcoin-cli
-def build_utxo_set(start = 1, end = best_block_height):
-    with alive_bar(end) as bar:
-        for i in range(start, end + 1):
+def build_utxo_set(start_height = 1, end_height = best_block_height):
+    step = 100
+    end_height = end_height + 1 # height is zero-indexed
+    with alive_bar(end_height - start_height) as progress_bar:
+        for i in range(start_height, end_height, step):
+            commands = [ [ "getblockhash", height] for height in range(i, min(i + step, end_height)) ]
             try:
-                block_hash = rpc_connection.getblockhash(i)
-                block = rpc_connection.getblock(block_hash)
+                block_hashes = rpc_connection.batch_(commands)
+                blocks = rpc_connection.batch_([ [ "getblock", h ] for h in block_hashes ])
             except JSONRPCException as err:
                 log.error(f"RPC Exception {err}")
 
-            transactions = block["tx"]
-            log.info(f"block {i} with hash {block_hash} contains {len(transactions)} transactions")
-            process_transactions(transactions, block_hash)
-            bar()
+            log.info(f"{len(blocks)} blocks retrieved")
+            for block in blocks:
+                block_height = block["height"]
+                block_hash = block["hash"]
+                transactions = block["tx"]
+                log.info(f"block {block_height} with hash {block_hash} contains {len(transactions)} transactions")
+                process_transactions(transactions, block_hash)
+                progress_bar()
+
 
 # todo change this to just json dumps a serializable object (the transaction object also on the TODO list)
 def print_utxo_set():
@@ -99,13 +107,13 @@ def print_utxo_set():
 # TODO: periodically check the best block hash and get all blocks up to the current height
 UNDER_CONSTRUCTION = True
 if __name__ == "__main__":
-    start = 1
-    end = best_block_height
+    start_height = 1
+    end_height = best_block_height
     if UNDER_CONSTRUCTION:
-        start = 1
-        end = 500
+        start_height = 1
+        end_height = 130
 
-    build_utxo_set(start, end)
+    build_utxo_set(start_height, end_height)
     print_utxo_set()
 
 
