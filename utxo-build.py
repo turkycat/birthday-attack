@@ -14,10 +14,10 @@ file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(mess
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-info_handler = logging.FileHandler("logfile.txt", "w", "utf-8")
-info_handler.setLevel(logging.INFO)
-info_handler.setFormatter(file_format)
-log.addHandler(info_handler)
+# info_handler = logging.FileHandler("logfile.txt", "w", "utf-8")
+# info_handler.setLevel(logging.INFO)
+# info_handler.setFormatter(file_format)
+# log.addHandler(info_handler)
 
 error_handler = logging.FileHandler("errors.txt", "w", "utf-8")
 error_handler.setLevel(logging.ERROR)
@@ -44,35 +44,42 @@ utxo_set = {}
 #                             functions
 # -----------------------------------------------------------------
 
-def process_transactions(transactions, block_hash):
-    for i in range(0, len(transactions)):
-        txid = transactions[i]
-        
+def process_transactions(txids, block_hash):
+    step = 100
+    total_transactions = len(txids)
+    for i in range(0, total_transactions, step):
         try:
-            log.info(f"getrawtransaction {txid} 1 {block_hash}")
-            raw_tx = rpc_connection.getrawtransaction(txid, True, block_hash)
+            #log.info(f"getrawtransaction {txid} 1 {block_hash}")
+            #raw_tx = rpc_connection.getrawtransaction(txid, True, block_hash)
+            tx_commands = [ [ "getrawtransaction", txids[i], True, block_hash ] for i in range(i, min(i + step, total_transactions)) ]
+            transactions = rpc_connection.batch_(tx_commands)
         except JSONRPCException as err:
             log.error(f"RPC Exception {err}")
         
-        # skip handling vin for coinbase transaction
-        if i > 0:
-            for input in raw_tx["vin"]:
-                spent_output_key = (input["txid"], input["vout"])
+        # process each transaction by removing the input utxos from the unspent set and adding the new outputs as unspent
+        for transaction in transactions:
 
+            # remove all inputs from utxo_set
+            for input in transaction["vin"]:
+
+                # coinbase transactions do not have input txids and cannot already exist in the utxo set
+                if input.get("coinbase"):
+                    break
+
+                spent_output_key = (input["txid"], input["vout"])
                 if spent_output_key in utxo_set:
                     log.info(f"removing spent output with key: {spent_output_key}")
                     utxo_set.pop(spent_output_key)
                 else:
                     log.error(f"spent output not found: {spent_output_key}")
 
-        for output in raw_tx["vout"]:
-            new_output_key = (txid, output["n"])
-            log.info(f"adding new output with key: {new_output_key}")
-            utxo_set[new_output_key] = output["scriptPubKey"]
+            for output in transaction["vout"]:
+                new_output_key = (transaction["txid"], output["n"])
+                log.info(f"adding new output with key: {new_output_key}")
+                utxo_set[new_output_key] = output["scriptPubKey"]
 
-# TODO batch RPC calls to bitcoin-cli
 def build_utxo_set(start_height = 1, end_height = best_block_height):
-    step = 100
+    step = 1000
     end_height = end_height + 1 # height is zero-indexed
     with alive_bar(end_height - start_height) as progress_bar:
         for i in range(start_height, end_height, step):
@@ -87,9 +94,9 @@ def build_utxo_set(start_height = 1, end_height = best_block_height):
             for block in blocks:
                 block_height = block["height"]
                 block_hash = block["hash"]
-                transactions = block["tx"]
-                log.info(f"block {block_height} with hash {block_hash} contains {len(transactions)} transactions")
-                process_transactions(transactions, block_hash)
+                txids = block["tx"]
+                log.info(f"block {block_height} with hash {block_hash} contains {len(txids)} transactions")
+                process_transactions(txids, block_hash)
                 progress_bar()
 
 
@@ -105,7 +112,7 @@ def print_utxo_set():
         utxofile.write("]")
 
 # TODO: periodically check the best block hash and get all blocks up to the current height
-UNDER_CONSTRUCTION = True
+UNDER_CONSTRUCTION = False
 if __name__ == "__main__":
     start_height = 1
     end_height = best_block_height
