@@ -1,9 +1,12 @@
-from json import decoder
+import json
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+
+UNDER_CONSTRUCTION = True
 
 # rpcuser and rpcpassword are set in the bitcoin.conf file
 rpc_connection = AuthServiceProxy("http://%s:%s@127.0.0.1:8332"%('turkyrpc', 'turkypass'))
 logfile = open("logfile.txt", "a")
+errorfile = open("errors.txt", "w")
 logfile.write("---------------------------------------------------------------------------\n")
 logfile.write("                           new session                                     \n")
 logfile.write("---------------------------------------------------------------------------\n")
@@ -21,9 +24,16 @@ def print_last_20_block_hashes():
 
 # TODO add loglevels or replace with a library
 def lw(message):
+    logfile.write(message)
+    logfile.write("\n")
+
+# TODO add loglevels or replace with a library
+def le(message):
     print(message)
     logfile.write(message)
     logfile.write("\n")
+    errorfile.write(message)
+    errorfile.write("\n")
 
 # utxo_set is currently K: tuple( transaction_hash, index ) V: script_pubkey
 # TODO: write a class object to encapsulate all the interesting information from unspent outputs 
@@ -44,6 +54,8 @@ def process_transactions(transactions, block_hash):
             if spent_output_key in utxo_set:
                 lw(f"removing spent output with key: {spent_output_key}")
                 utxo_set.pop(spent_output_key)
+            else:
+                le(f"spent output not found: {spent_output_key}")
 
         for output in raw_tx["vout"]:
             new_output_key = (txid, output["n"])
@@ -52,26 +64,35 @@ def process_transactions(transactions, block_hash):
 
 # using the temporary range 500, 500 while building, eventually we will want to
 # periodically check the best block hash and get all blocks up to the current height
-for i in range(499, 500):
-# for i in range(0, best_block_height):
+
+start = 0
+end = best_block_height
+if UNDER_CONSTRUCTION:
+    start = 400
+    end = 500
+
+# TODO batch RPC calls to bitcoin-cli
+for i in range(start, end):
     block_hash = rpc_connection.getblockhash(i)
     block = rpc_connection.getblock(block_hash)
     transactions = block["tx"]
     if len(transactions) == 1:
-        lw("skipping block with only coinbase")
+        le(f"skipping block with only coinbase: {block_hash}")
         continue
 
     process_transactions(transactions, block_hash)
-    
+
+# todo change this to just json dumps a serializable object (the transaction object also on the TODO list)
 def print_utxo_set():
-    print("[")
+    utxofile = open("utxos.txt", "w") # change to json
+    utxofile.write("[\n")
     for item in utxo_set.items():
         txid, index = item[0]
         script_pubkey = item[1]
-        print(f"{{'txid': '{txid}','index': '{index}', 'script_pubkey': {script_pubkey}}},")
-    print("]")
+        # this is OK for now, to see a prelim set and verify some transaction data
+        utxofile.write(f'\t{{\n\t\t"txid": "{txid}",\n\t\t"index": "{index}",\n\t\t"script_pubkey": {script_pubkey}\n\t}},\n')
+    utxofile.write("]")
     
-
 print_utxo_set()
 
 
