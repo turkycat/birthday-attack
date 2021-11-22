@@ -1,8 +1,6 @@
 import json
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 
-UNDER_CONSTRUCTION = True
-
 # rpcuser and rpcpassword are set in the bitcoin.conf file
 rpc_connection = AuthServiceProxy("http://%s:%s@127.0.0.1:8332"%('turkyrpc', 'turkypass'))
 logfile = open("logfile.txt", "a")
@@ -62,40 +60,41 @@ def process_transactions(transactions, block_hash):
             lw(f"adding new output with key: {new_output_key}")
             utxo_set[new_output_key] = output["scriptPubKey"]
 
-# using the temporary range 500, 500 while building, eventually we will want to
-# periodically check the best block hash and get all blocks up to the current height
-
-start = 0
-end = best_block_height
-if UNDER_CONSTRUCTION:
-    start = 400
-    end = 500
-
 # TODO batch RPC calls to bitcoin-cli
-for i in range(start, end):
-    block_hash = rpc_connection.getblockhash(i)
-    block = rpc_connection.getblock(block_hash)
-    transactions = block["tx"]
-    if len(transactions) == 1:
-        le(f"skipping block with only coinbase: {block_hash}")
-        continue
+def build_utxo_set(start = 0, end = best_block_height):
+    for i in range(start, end):
+        block_hash = rpc_connection.getblockhash(i)
+        block = rpc_connection.getblock(block_hash)
+        transactions = block["tx"]
 
-    process_transactions(transactions, block_hash)
+        if len(transactions) == 1:
+            le(f"skipping block with only coinbase: {block_hash}")
+            continue
+        process_transactions(transactions, block_hash)
 
 # todo change this to just json dumps a serializable object (the transaction object also on the TODO list)
 def print_utxo_set():
-    utxofile = open("utxos.txt", "w") # change to json
-    utxofile.write("[\n")
-    for item in utxo_set.items():
-        txid, index = item[0]
-        script_pubkey = item[1]
-        # this is OK for now, to see a prelim set and verify some transaction data
-        utxofile.write(f'\t{{\n\t\t"txid": "{txid}",\n\t\t"index": "{index}",\n\t\t"script_pubkey": {script_pubkey}\n\t}},\n')
-    utxofile.write("]")
-    
-print_utxo_set()
+    with open("utxos.txt", "w") as utxofile: # change to json
+        utxofile.write("[\n")
+        for item in utxo_set.items():
+            txid, index = item[0]
+            script_pubkey = item[1]
+            # this is OK for now, to see a prelim set and verify some transaction data
+            utxofile.write(f'\t{{\n\t\t"txid": "{txid}",\n\t\t"index": "{index}",\n\t\t"script_pubkey": {script_pubkey}\n\t}},\n')
+        utxofile.write("]")
 
+# using the temporary range 400, 500 while building, eventually we will want to
+# periodically check the best block hash and get all blocks up to the current height
+UNDER_CONSTRUCTION = False
+if __name__ == "__main__":
+    start = 0
+    end = best_block_height
+    if UNDER_CONSTRUCTION:
+        start = 400
+        end = 500
 
+    build_utxo_set(start, end)
+    print_utxo_set()
 
 
 # batch support : print timestamps of blocks 0 to 99 in 2 RPC round-trips:
