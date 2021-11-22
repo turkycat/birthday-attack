@@ -1,30 +1,28 @@
 import json
 import logging
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+from alive_progress import alive_bar
 
 # -----------------------------------------------------------------
 #                             logging
 # -----------------------------------------------------------------
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.ERROR)
-error_handler = logging.FileHandler("errors.txt", "w")
-error_handler.setLevel(logging.ERROR)
-info_handler = logging.FileHandler("logfile.txt", "w")
-info_handler.setLevel(logging.INFO)
-
 # formatters and learnings shamelessly stolen from https://realpython.com/python-logging/
 stream_format = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
 file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-stream_handler.setFormatter(stream_format)
-error_handler.setFormatter(file_format)
-info_handler.setFormatter(file_format)
 
-log.addHandler(stream_handler)
-log.addHandler(error_handler)
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+
+info_handler = logging.FileHandler("logfile.txt", "w", "utf-8")
+info_handler.setLevel(logging.INFO)
+info_handler.setFormatter(file_format)
 log.addHandler(info_handler)
+
+error_handler = logging.FileHandler("errors.txt", "w", "utf-8")
+error_handler.setLevel(logging.ERROR)
+error_handler.setFormatter(file_format)
+log.addHandler(error_handler)
 
 # -----------------------------------------------------------------
 #                             globals
@@ -74,17 +72,18 @@ def process_transactions(transactions, block_hash):
 
 # TODO batch RPC calls to bitcoin-cli
 def build_utxo_set(start = 1, end = best_block_height):
-    log.info(f"building utxo set")
-    for i in range(start, end + 1):
-        try:
-            block_hash = rpc_connection.getblockhash(i)
-            block = rpc_connection.getblock(block_hash)
-        except JSONRPCException as err:
-            log.error(f"RPC Exception {err}")
+    with alive_bar(end) as bar:
+        for i in range(start, end + 1):
+            try:
+                block_hash = rpc_connection.getblockhash(i)
+                block = rpc_connection.getblock(block_hash)
+            except JSONRPCException as err:
+                log.error(f"RPC Exception {err}")
 
-        transactions = block["tx"]
-        log.info(f"block {i} with hash {block_hash} contains {len(transactions)} transactions")
-        process_transactions(transactions, block_hash)
+            transactions = block["tx"]
+            log.info(f"block {i} with hash {block_hash} contains {len(transactions)} transactions")
+            process_transactions(transactions, block_hash)
+            bar()
 
 # todo change this to just json dumps a serializable object (the transaction object also on the TODO list)
 def print_utxo_set():
@@ -104,7 +103,7 @@ if __name__ == "__main__":
     end = best_block_height
     if UNDER_CONSTRUCTION:
         start = 1
-        end = 10
+        end = 500
 
     build_utxo_set(start, end)
     print_utxo_set()
