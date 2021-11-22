@@ -1,75 +1,89 @@
 import json
+import logging
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
+
+# -----------------------------------------------------------------
+#                             logging
+# -----------------------------------------------------------------
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.ERROR)
+error_handler = logging.FileHandler("errors.txt", "w")
+error_handler.setLevel(logging.ERROR)
+info_handler = logging.FileHandler("logfile.txt", "w")
+info_handler.setLevel(logging.INFO)
+
+# formatters and learnings shamelessly stolen from https://realpython.com/python-logging/
+stream_format = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+stream_handler.setFormatter(stream_format)
+error_handler.setFormatter(file_format)
+info_handler.setFormatter(file_format)
+
+log.addHandler(stream_handler)
+log.addHandler(error_handler)
+log.addHandler(info_handler)
+
+# -----------------------------------------------------------------
+#                             globals
+# -----------------------------------------------------------------
 
 # rpcuser and rpcpassword are set in the bitcoin.conf file
 rpc_connection = AuthServiceProxy("http://%s:%s@127.0.0.1:8332"%('turkyrpc', 'turkypass'))
-logfile = open("logfile.txt", "a")
-errorfile = open("errors.txt", "w")
-logfile.write("---------------------------------------------------------------------------\n")
-logfile.write("                           new session                                     \n")
-logfile.write("---------------------------------------------------------------------------\n")
 
 best_block_hash = rpc_connection.getbestblockhash()
 best_block = rpc_connection.getblock(best_block_hash)
 best_block_height = int(best_block["height"])
 
-# this was me remembering how to python, but leaving it for fun
-def print_last_20_block_hashes():
-    for i in range(best_block_height - 20, best_block_height):
-        block_hash = rpc_connection.getblockhash(i)
-        block = rpc_connection.getblock(block_hash)
-        print(block["hash"])
-
-# TODO add loglevels or replace with a library
-def lw(message):
-    logfile.write(message)
-    logfile.write("\n")
-
-# TODO add loglevels or replace with a library
-def le(message):
-    print(message)
-    logfile.write(message)
-    logfile.write("\n")
-    errorfile.write(message)
-    errorfile.write("\n")
-
 # utxo_set is currently K: tuple( transaction_hash, index ) V: script_pubkey
 # TODO: write a class object to encapsulate all the interesting information from unspent outputs 
+# which can then be serialized and persisted
 utxo_set = {}
-def process_transactions(transactions, block_hash):
-    for i in range(1, len(transactions)):
-        txid = transactions[i]
-        lw(f"getrawtransaction {txid} 1 {block_hash}")
-        raw_tx = rpc_connection.getrawtransaction(txid, True, block_hash)
-        
-        for input in raw_tx["vin"]:
-            spent_output_key = (input["txid"], input["vout"])
 
-            # remove the spent output from our UTXO set
-            # one might think that the set must always contain the item-
-            # but this isn't true. an input could be a coinbase transaction.
-            # coinbase transactions are not retrievable via getrawtransaction
-            if spent_output_key in utxo_set:
-                lw(f"removing spent output with key: {spent_output_key}")
-                utxo_set.pop(spent_output_key)
-            else:
-                le(f"spent output not found: {spent_output_key}")
+# -----------------------------------------------------------------
+#                             functions
+# -----------------------------------------------------------------
+
+def process_transactions(transactions, block_hash):
+    for i in range(0, len(transactions)):
+        txid = transactions[i]
+        
+        try:
+            log.info(f"getrawtransaction {txid} 1 {block_hash}")
+            raw_tx = rpc_connection.getrawtransaction(txid, True, block_hash)
+        except JSONRPCException as err:
+            log.error(f"RPC Exception {err}")
+        
+        # skip handling vin for coinbase transaction
+        if i > 0:
+            for input in raw_tx["vin"]:
+                spent_output_key = (input["txid"], input["vout"])
+
+                if spent_output_key in utxo_set:
+                    log.info(f"removing spent output with key: {spent_output_key}")
+                    utxo_set.pop(spent_output_key)
+                else:
+                    log.error(f"spent output not found: {spent_output_key}")
 
         for output in raw_tx["vout"]:
             new_output_key = (txid, output["n"])
-            lw(f"adding new output with key: {new_output_key}")
+            log.info(f"adding new output with key: {new_output_key}")
             utxo_set[new_output_key] = output["scriptPubKey"]
 
 # TODO batch RPC calls to bitcoin-cli
-def build_utxo_set(start = 0, end = best_block_height):
-    for i in range(start, end):
-        block_hash = rpc_connection.getblockhash(i)
-        block = rpc_connection.getblock(block_hash)
-        transactions = block["tx"]
+def build_utxo_set(start = 1, end = best_block_height):
+    log.info(f"building utxo set")
+    for i in range(start, end + 1):
+        try:
+            block_hash = rpc_connection.getblockhash(i)
+            block = rpc_connection.getblock(block_hash)
+        except JSONRPCException as err:
+            log.error(f"RPC Exception {err}")
 
-        if len(transactions) == 1:
-            le(f"skipping block with only coinbase: {block_hash}")
-            continue
+        transactions = block["tx"]
+        log.info(f"block {i} with hash {block_hash} contains {len(transactions)} transactions")
         process_transactions(transactions, block_hash)
 
 # todo change this to just json dumps a serializable object (the transaction object also on the TODO list)
@@ -83,15 +97,14 @@ def print_utxo_set():
             utxofile.write(f'\t{{\n\t\t"txid": "{txid}",\n\t\t"index": "{index}",\n\t\t"script_pubkey": {script_pubkey}\n\t}},\n')
         utxofile.write("]")
 
-# using the temporary range 400, 500 while building, eventually we will want to
-# periodically check the best block hash and get all blocks up to the current height
-UNDER_CONSTRUCTION = False
+# TODO: periodically check the best block hash and get all blocks up to the current height
+UNDER_CONSTRUCTION = True
 if __name__ == "__main__":
-    start = 0
+    start = 1
     end = best_block_height
     if UNDER_CONSTRUCTION:
-        start = 400
-        end = 500
+        start = 1
+        end = 10
 
     build_utxo_set(start, end)
     print_utxo_set()
