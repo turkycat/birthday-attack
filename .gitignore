@@ -1,4 +1,5 @@
 logfile.txt
 errors.txt
 utxos.json
+cache.json
 *.pyc
