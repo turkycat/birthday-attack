@@ -1,5 +1,7 @@
 import json
 import logging
+import jsonpickle
+from txoutput import TxOutput
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
 
@@ -35,10 +37,7 @@ best_block_hash = rpc_connection.getbestblockhash()
 best_block = rpc_connection.getblock(best_block_hash)
 best_block_height = int(best_block["height"])
 
-# utxo_set is currently K: tuple( transaction_hash, index ) V: script_pubkey
-# TODO: write a class object to encapsulate all the interesting information from unspent outputs 
-# which can then be serialized and persisted
-utxo_set = {}
+utxo_set = set()
 
 # -----------------------------------------------------------------
 #                             functions
@@ -49,8 +48,6 @@ def process_transactions(txids, block_hash):
     total_transactions = len(txids)
     for i in range(0, total_transactions, step):
         try:
-            #log.info(f"getrawtransaction {txid} 1 {block_hash}")
-            #raw_tx = rpc_connection.getrawtransaction(txid, True, block_hash)
             tx_commands = [ [ "getrawtransaction", txids[i], True, block_hash ] for i in range(i, min(i + step, total_transactions)) ]
             transactions = rpc_connection.batch_(tx_commands)
         except JSONRPCException as err:
@@ -58,25 +55,24 @@ def process_transactions(txids, block_hash):
         
         # process each transaction by removing the input utxos from the unspent set and adding the new outputs as unspent
         for transaction in transactions:
-
-            # remove all inputs from utxo_set
             for input in transaction["vin"]:
 
                 # coinbase transactions do not have input txids and cannot already exist in the utxo set
                 if input.get("coinbase"):
                     break
 
-                spent_output_key = (input["txid"], input["vout"])
-                if spent_output_key in utxo_set:
-                    log.info(f"removing spent output with key: {spent_output_key}")
-                    utxo_set.pop(spent_output_key)
+                spent_output = TxOutput(input["txid"], input["vout"])
+                if spent_output in utxo_set:
+                    log.info(f"removing spent output {spent_output}")
+                    utxo_set.remove(spent_output)
                 else:
-                    log.error(f"spent output not found: {spent_output_key}")
+                    log.error(f"spent output not found: {spent_output}")
 
+            # add all outputs to utxo set
             for output in transaction["vout"]:
-                new_output_key = (transaction["txid"], output["n"])
-                log.info(f"adding new output with key: {new_output_key}")
-                utxo_set[new_output_key] = output["scriptPubKey"]
+                new_output = TxOutput(transaction["txid"], output["n"], output["scriptPubKey"])
+                log.info(f"adding new output with key: {new_output}")
+                utxo_set.add(new_output)
 
 def build_utxo_set(start_height = 1, end_height = best_block_height):
     step = 1000
@@ -99,34 +95,18 @@ def build_utxo_set(start_height = 1, end_height = best_block_height):
                 process_transactions(txids, block_hash)
                 progress_bar()
 
-
-# todo change this to just json dumps a serializable object (the transaction object also on the TODO list)
-def print_utxo_set():
-    with open("utxos.txt", "w") as utxofile: # change to json
-        utxofile.write("[\n")
-        for item in utxo_set.items():
-            txid, index = item[0]
-            script_pubkey = item[1]
-            # this is OK for now, to see a prelim set and verify some transaction data
-            utxofile.write(f'\t{{\n\t\t"txid": "{txid}",\n\t\t"index": "{index}",\n\t\t"script_pubkey": {script_pubkey}\n\t}},\n')
-        utxofile.write("]")
+def persist_state():
+    with open("utxos.json", "w") as utxo_file:
+        utxo_file.write(jsonpickle.encode(utxo_set))
 
 # TODO: periodically check the best block hash and get all blocks up to the current height
-UNDER_CONSTRUCTION = False
+UNDER_CONSTRUCTION = True
 if __name__ == "__main__":
     start_height = 1
     end_height = best_block_height
     if UNDER_CONSTRUCTION:
         start_height = 1
-        end_height = 130
+        end_height = 100
 
     build_utxo_set(start_height, end_height)
-    print_utxo_set()
-
-
-# batch support : print timestamps of blocks 0 to 99 in 2 RPC round-trips:
-#commands = [ [ "getblockhash", height] for height in range(20) ]
-#block_hashes = rpc_connection.batch_(commands)
-#blocks = rpc_connection.batch_([ [ "getblock", h ] for h in block_hashes ])
-#block_times = [ block["time"] for block in blocks ]
-#print(block_times)
+    persist_state()
