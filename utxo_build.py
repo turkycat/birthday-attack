@@ -82,7 +82,8 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
     step = 1000
     last_block_processed = None
     end_height = end_height + 1 # height is zero-indexed
-    with alive_bar(end_height - start_height) as progress_bar:
+    with alive_bar(end_height) as progress_bar:
+        progress_bar(start_height)
         for i in range(start_height, end_height, step):
             commands = [ [ "getblockhash", height] for height in range(i, min(i + step, end_height)) ]
             try:
@@ -100,10 +101,14 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
                 process_transactions(utxo_set, txids, block_hash)
                 last_block_processed = block_height
                 progress_bar()
+
+            # save our progress every [step] blocks
+            save(utxo_set, last_block_processed)
+
     return last_block_processed
 
 # writes the current utxo set and other stateful properties to files
-def save(utxo_set, last_block_processed):
+def save(utxo_set, last_block_processed, finished = False):
     with open(FILE_NAME_UTXO, "w", encoding="utf-8") as utxo_file:
         utxo_file.write(jsonpickle.encode(utxo_set))
 
@@ -111,6 +116,9 @@ def save(utxo_set, last_block_processed):
     cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
     with open(FILE_NAME_CACHE, "w", encoding="utf-8") as cache_file:
         cache_file.write(json.dumps(cache))
+
+    if not finished:
+        print("progress is saved!")
 
 def load():
     utxo_set = None
@@ -128,7 +136,7 @@ def load():
         
     return utxo_set, last_block_processed
 
-TESTING = True
+TESTING = False
 TESTING_HEIGHT = 100
 if __name__ == "__main__":
     utxo_set, last_block_processed = load()
@@ -138,10 +146,10 @@ if __name__ == "__main__":
     start_height = last_block_processed + 1
     end_height = (TESTING and TESTING_HEIGHT) or best_block_height
 
-    print(len(utxo_set))
-    print(last_block_processed)
-    print(start_height)
-    print(end_height)
+    log.debug(len(utxo_set))
+    log.debug(last_block_processed)
+    log.debug(start_height)
+    log.debug(end_height)
 
     last_block_processed = build_utxo_set(utxo_set, start_height, end_height) or last_block_processed
-    save(utxo_set, last_block_processed)
+    save(utxo_set, last_block_processed, True)
