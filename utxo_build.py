@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import jsonpickle
@@ -37,13 +38,16 @@ best_block_hash = rpc_connection.getbestblockhash()
 best_block = rpc_connection.getblock(best_block_hash)
 best_block_height = int(best_block["height"])
 
-utxo_set = set()
+# these identifiers are for readability and shouldn't be changed
+FILE_NAME_UTXO = "utxos.json"
+FILE_NAME_CACHE = "cache.json"
+PROPERTY_NAME_LAST_BLOCK = "last_block"
 
 # -----------------------------------------------------------------
 #                             functions
 # -----------------------------------------------------------------
 
-def process_transactions(txids, block_hash):
+def process_transactions(utxo_set, txids, block_hash):
     step = 100
     total_transactions = len(txids)
     for i in range(0, total_transactions, step):
@@ -74,8 +78,9 @@ def process_transactions(txids, block_hash):
                 log.info(f"adding new output with key: {new_output}")
                 utxo_set.add(new_output)
 
-def build_utxo_set(start_height = 1, end_height = best_block_height):
+def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
     step = 1000
+    last_block_processed = 0
     end_height = end_height + 1 # height is zero-indexed
     with alive_bar(end_height - start_height) as progress_bar:
         for i in range(start_height, end_height, step):
@@ -92,21 +97,51 @@ def build_utxo_set(start_height = 1, end_height = best_block_height):
                 block_hash = block["hash"]
                 txids = block["tx"]
                 log.info(f"block {block_height} with hash {block_hash} contains {len(txids)} transactions")
-                process_transactions(txids, block_hash)
+                process_transactions(utxo_set, txids, block_hash)
+                last_block_processed = block_height
                 progress_bar()
+    return last_block_processed
 
-def persist_state():
-    with open("utxos.json", "w") as utxo_file:
+# writes the current utxo set and other stateful properties to files
+def save(utxo_set, last_block_processed):
+    with open(FILE_NAME_UTXO, "w", encoding="utf-8") as utxo_file:
         utxo_file.write(jsonpickle.encode(utxo_set))
 
-# TODO: periodically check the best block hash and get all blocks up to the current height
-UNDER_CONSTRUCTION = True
-if __name__ == "__main__":
-    start_height = 1
-    end_height = best_block_height
-    if UNDER_CONSTRUCTION:
-        start_height = 1
-        end_height = 100
+    cache = {}
+    cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
+    with open(FILE_NAME_CACHE, "w", encoding="utf-8") as cache_file:
+        cache_file.write(json.dumps(cache))
 
-    build_utxo_set(start_height, end_height)
-    persist_state()
+def load():
+    utxo_set = None
+    last_block_processed = None
+
+    if os.path.exists(FILE_NAME_UTXO):
+        with open(FILE_NAME_UTXO, "r", encoding="utf-8") as utxo_file:
+            # for the record, I really don't like this.
+            utxo_set = jsonpickle.decode(utxo_file.read())
+
+    if os.path.exists(FILE_NAME_CACHE):
+        with open(FILE_NAME_CACHE, "r", encoding="utf-8") as cache_file:
+            cache = jsonpickle.decode(cache_file.read())
+            last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
+        
+    return utxo_set, last_block_processed
+
+TESTING = True
+TESTING_HEIGHT = 100
+if __name__ == "__main__":
+    utxo_set, last_block_processed = load()
+
+    utxo_set = utxo_set or set()
+    last_block_processed = last_block_processed or 0
+    start_height = last_block_processed + 1
+    end_height = (TESTING and TESTING_HEIGHT) or best_block_height
+
+    print(len(utxo_set))
+    print(last_block_processed)
+    print(start_height)
+    print(end_height)
+
+    last_block_processed = build_utxo_set(utxo_set, start_height, end_height)
+    save(utxo_set, last_block_processed)

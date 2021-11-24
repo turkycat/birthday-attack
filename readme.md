@@ -10,8 +10,8 @@ re-visiting python after some years to explore new features and libraries.
 
 ## todos
 
-- create method for reading in the utxo set from the file and saving our place
 - add a local pip install file
+- periodically check the best block hash and get all blocks up to the current height
 
 ## dependencies
 
