@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import jsonpickle
+import time
 from txoutput import TxOutput
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
@@ -17,10 +18,10 @@ file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(mess
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-info_handler = logging.FileHandler("logfile.txt", "w", "utf-8")
-info_handler.setLevel(logging.DEBUG)
-info_handler.setFormatter(file_format)
-log.addHandler(info_handler)
+# info_handler = logging.FileHandler("logfile.txt", "w", "utf-8")
+# info_handler.setLevel(logging.DEBUG)
+# info_handler.setFormatter(file_format)
+# log.addHandler(info_handler)
 
 error_handler = logging.FileHandler("errors.txt", "w", "utf-8")
 error_handler.setLevel(logging.ERROR)
@@ -109,10 +110,18 @@ def process_blocks(utxo_set, block_hashes):
 def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
     step = 1000
     last_block_processed = None
+    last_save_time = time.time()
+    MINUTES_BETWEEN_SAVES = 20.0
+    SECONDS_PER_MINUTE = 60.0
     print(f"processing {end_height - start_height} blocks in the range [{start_height}, {end_height}]")
-    for i in range(start_height, end_height, step):
+
+    # end_height is a zero-indexed value representing the height of the max block we want to process
+    # we will batch for [step] block hashes at once due to predictable size of 32,000 bytes
+    # we will take care to include the end_height block by adding 1 to range but also not to go over
+    # the available blocks by setting a target block value at each iteration.
+    for i in range(start_height, end_height + 1, step):
         target_height = min(i + step, end_height)
-        commands = [ [ "getblockhash", height] for height in range(i, target_height) ]
+        commands = [ [ "getblockhash", height] for height in range(i, target_height + 1) ]
         try:
             block_hashes = rpc_connection.batch_(commands)
         except JSONRPCException as err:
@@ -126,12 +135,14 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
         if process_blocks(utxo_set, block_hashes):
             last_block_processed = target_height
         else:
-            log.error(f"unable to process all blocks in current batch. [{i}, {target_height}]")
+            log.error(f"unable to process all blocks in cSurrent batch. [{i}, {target_height}]")
             break
 
-        # save our progress every [step] blocks
-        save(utxo_set, last_block_processed)
-        print(f"progress is saved at block {last_block_processed}!")
+        # save our progress if enough time has passed
+        if (time.time() - last_save_time) > (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE):
+            save(utxo_set, last_block_processed)
+            print(f"progress is saved at block {last_block_processed}!")
+            last_save_time = time.time()
     return last_block_processed
 
 # writes the current utxo set and other stateful properties to files
