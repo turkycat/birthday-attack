@@ -14,9 +14,10 @@
 # frequently save/load progress with a file with a large set of UTXOs, I'll serialize one transaction per line.
 class TxOutput(object):
 
-    def __init__(self, hash, index, script = None):
+    def __init__(self, hash, index, block = None, script = None):
         self.hash = hash
         self.index = index
+        self.block = block
         self.script = script
 
     def __eq__(self, other):
@@ -29,12 +30,14 @@ class TxOutput(object):
         return f"<<TxOutput object: {self.hash} {self.index}>>"
 
     def __repr__(self):
-        return f"TxOutput({self.hash}, {self.index}, {self.script})"
+        return f"TxOutput({self.hash}, {self.index}, {self.block}, {self.script})"
 
     def serialize(self):
         info = [self.hash, str(self.index)]
-        if self.script is not None:
-            info.append(self.script)
+        if self.block is not None:
+            info.append(self.block)
+            if self.script is not None:
+                info.append(self.script)
         return ",".join(info)
 
     @classmethod
@@ -42,6 +45,7 @@ class TxOutput(object):
         info = data.split(",")
         hash = str(info[0])
         index = int(info[1])
-        if len(info) > 2:
-            script = str(info[2])
-        return TxOutput(hash, index, script)
+        if len(info) > 3:
+            block = str(info[2])
+            script = str(info[3])
+        return TxOutput(hash, index, block, script)

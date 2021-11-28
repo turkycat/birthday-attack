@@ -78,7 +78,7 @@ def process_transactions(utxo_set, txids, block_hash):
 
             # add all outputs to utxo set
             for output in transaction["vout"]:
-                new_output = TxOutput(transaction["txid"], output["n"], output["scriptPubKey"]["hex"])
+                new_output = TxOutput(transaction["txid"], output["n"], block_hash, output["scriptPubKey"]["hex"])
                 log.info(f"adding new output with key: {new_output}")
                 utxo_set.add(new_output)
     return True
