@@ -1,5 +1,5 @@
 logfile.txt
 errors.txt
-utxos.json
+utxos.txt
 cache.json
 *.pyc

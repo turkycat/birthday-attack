@@ -1,7 +1,6 @@
 import os
 import json
 import logging
-import jsonpickle
 from txoutput import TxOutput
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
@@ -39,7 +38,7 @@ best_block = rpc_connection.getblock(best_block_hash)
 best_block_height = int(best_block["height"])
 
 # these identifiers are for readability and shouldn't be changed
-FILE_NAME_UTXO = "utxos.json"
+FILE_NAME_UTXO = "utxos.txt"
 FILE_NAME_CACHE = "cache.json"
 PROPERTY_NAME_LAST_BLOCK = "last_block"
 
@@ -137,7 +136,12 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
 # writes the current utxo set and other stateful properties to files
 def save(utxo_set, last_block_processed):
     with open(FILE_NAME_UTXO, "w", encoding="utf-8") as utxo_file:
-        utxo_file.write(jsonpickle.encode(utxo_set))
+        print("saving UTXOs to file")
+        with alive_bar(len(utxo_set)) as progress_bar:
+            for output in utxo_set:
+                data = output.serialize()
+                utxo_file.write(f"{data}\n")
+                progress_bar()
 
     cache = {}
     cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
@@ -145,19 +149,21 @@ def save(utxo_set, last_block_processed):
         cache_file.write(json.dumps(cache))
 
 def load():
-    utxo_set = None
+    utxo_set = set()
     last_block_processed = None
 
     if os.path.exists(FILE_NAME_UTXO):
         with open(FILE_NAME_UTXO, "r", encoding="utf-8") as utxo_file:
             print("loading UTXOs from file")
             with alive_bar() as progress_bar:
-                # for the record, I really don't like this.
-                utxo_set = jsonpickle.decode(utxo_file.read())
+                for line in utxo_file:
+                    output = TxOutput.deserialize(line[:-1]) # remove newline character
+                    if output is not None:
+                        utxo_set.add(output)
 
     if os.path.exists(FILE_NAME_CACHE):
         with open(FILE_NAME_CACHE, "r", encoding="utf-8") as cache_file:
-            cache = jsonpickle.decode(cache_file.read())
+            cache = json.loads(cache_file.read())
             last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
         
     return utxo_set, last_block_processed
