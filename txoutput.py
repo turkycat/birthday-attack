@@ -10,15 +10,17 @@
 # silly to me. further, json.dumps() doesn't even work when the set is converted to a list since this class must be serializable
 # and that isn't as simple as just overriding a function. go figure! Python is great, but has some limitations.
 # in the end, I want to stick to my guns of keeping the utxo set as small as possible in memory, which means no keys.
-# that is where this jsonpickle library comes in! rather than implementing my own serialization, I'll opt for the speed of a library.
 
-import jsonpickle
+KEY_HASH = "hsh"
+KEY_INDEX = "idx"
+KEY_BLOCK = "blk"
+KEY_SCRIPT = "scr"
 
-# the use of (object) here is redundant in python 3+
-# new style class objects are required for jsonpickle
+import json
 class TxOutput(object):
 
-    def __init__(self, hash, index, script = None):
+    def __init__(self, hash, index, block = None, script = None):
+        self.block = block
         self.hash = hash
         self.index = index
         self.script = script
@@ -33,10 +35,42 @@ class TxOutput(object):
         return f"<<TxOutput object: {self.hash} {self.index}>>"
 
     def __repr__(self):
-        return f"TxOutput({self.hash}, {self.index}, {self.script})"
+        return f"TxOutput({self.hash}, {self.index}, {self.block}, {self.script})"
 
-def tx_to_json(transaction):
-    return jsonpickle.encode(transaction)
+    def json_encode(self):
+        info = {}
+        info[KEY_HASH] = self.hash
+        info[KEY_INDEX] = self.index
+        if self.block is not None:
+            info[KEY_BLOCK] = self.block
+        if self.script is not None:
+            info[KEY_SCRIPT] = self.script
+        return json.dumps(info)
 
-def json_to_tx(json_string):
-    return jsonpickle.decode(json_string)
+    # @classmethod
+    # def json_decode(cls, j)
+    
+class JsonEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, TxOutput):
+            return obj.to_json()
+
+        return json.JSONEncoder.default(self, obj)
+
+class JsonDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
+
+    def object_hook(self, obj):
+        if isinstance(obj, dict):
+            if KEY_HASH in obj and KEY_INDEX in obj:
+                hash = str(obj[KEY_HASH])
+                index = int(obj[KEY_INDEX])
+                if KEY_BLOCK in obj:
+                    block = obj[KEY_BLOCK]
+                if KEY_SCRIPT in obj:
+                    script = obj[KEY_SCRIPT]
+
+                return TxOutput(hash, index, block, script)
+
+        return obj

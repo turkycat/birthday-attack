@@ -10,6 +10,7 @@ re-visiting python after some years to explore new features and libraries.
 
 ## todos
 
+- write tests for json encoding and decoding of txoutput custom serializer
 - add a local pip install file
 - periodically check the best block hash and get all blocks up to the current height
 

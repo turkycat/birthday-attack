@@ -3,7 +3,7 @@ import json
 import logging
 import jsonpickle
 import time
-from txoutput import TxOutput
+import txoutput
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
 
@@ -71,7 +71,7 @@ def process_transactions(utxo_set, txids, block_hash):
                 if input.get("coinbase"):
                     break
 
-                spent_output = TxOutput(input["txid"], input["vout"])
+                spent_output = txoutput.TxOutput(input["txid"], input["vout"])
                 if spent_output in utxo_set:
                     log.info(f"removing spent output {spent_output}")
                     utxo_set.remove(spent_output)
@@ -80,7 +80,7 @@ def process_transactions(utxo_set, txids, block_hash):
 
             # add all outputs to utxo set
             for output in transaction["vout"]:
-                new_output = TxOutput(transaction["txid"], output["n"], output["scriptPubKey"])
+                new_output = txoutput.TxOutput(transaction["txid"], output["n"], block_hash, output["scriptPubKey"])
                 log.info(f"adding new output with key: {new_output}")
                 utxo_set.add(new_output)
     return True
@@ -113,15 +113,16 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
     last_save_time = time.time()
     MINUTES_BETWEEN_SAVES = 20.0
     SECONDS_PER_MINUTE = 60.0
-    print(f"processing {end_height - start_height} blocks in the range [{start_height}, {end_height}]")
+    print(f"processing {end_height - start_height + 1} blocks in the range [{start_height}, {end_height}]")
 
     # end_height is a zero-indexed value representing the height of the max block we want to process
-    # we will batch for [step] block hashes at once due to predictable size of 32,000 bytes
-    # we will take care to include the end_height block by adding 1 to range but also not to go over
-    # the available blocks by setting a target block value at each iteration.
-    for i in range(start_height, end_height + 1, step):
-        target_height = min(i + step, end_height)
-        commands = [ [ "getblockhash", height] for height in range(i, target_height + 1) ]
+    # we will batch for [step] block hashes at once due to predictable size of 32,000 bytes.
+    # we will take care to include the end_height block by adding 1 but also not to go over the
+    # available blocks by a full step during the last iteration.
+    end_height = end_height + 1
+    for i in range(start_height, end_height, step):
+        count = min(step, end_height - i)
+        commands = [ [ "getblockhash", height] for height in range(i, i + count) ]
         try:
             block_hashes = rpc_connection.batch_(commands)
         except JSONRPCException as err:
@@ -133,9 +134,9 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
 
         log.info(f"{len(block_hashes)} block hashes retrieved")
         if process_blocks(utxo_set, block_hashes):
-            last_block_processed = target_height
+            last_block_processed = i + count - 1
         else:
-            log.error(f"unable to process all blocks in cSurrent batch. [{i}, {target_height}]")
+            log.error(f"unable to process all blocks in current batch. [{i}, {i + count - 1}]")
             break
 
         # save our progress if enough time has passed
