@@ -25,5 +25,4 @@ set `bitcoin.conf` property `rpcservertimeout=1200` to guarantee that the RPC co
 ```bash
 pip install python-bitcoinrpc
 pip install alive-progress
-pip install -U jsonpickle
 ```

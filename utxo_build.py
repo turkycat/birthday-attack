@@ -3,6 +3,7 @@ import json
 import logging
 import time
 from txoutput import TxOutput
+from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
 
@@ -10,7 +11,7 @@ from alive_progress import alive_bar
 #                             logging
 # -----------------------------------------------------------------
 
-# formatters and learnings shamelessly stolen from https://realpython.com/python-logging/
+# formatters from https://realpython.com/python-logging/
 stream_format = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
 file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -31,14 +32,14 @@ log.addHandler(error_handler)
 #                             globals
 # -----------------------------------------------------------------
 
-# rpcuser and rpcpassword are set in the bitcoin.conf file
+# rpcuser and rpcpassword are set in the bitcoin.conf file, and yes don't worry this is a dummy user and password
 rpc_connection = AuthServiceProxy("http://%s:%s@127.0.0.1:8332"%('turkyrpc', 'turkypass'), timeout=1200)
 
 best_block_hash = rpc_connection.getbestblockhash()
 best_block = rpc_connection.getblock(best_block_hash)
 best_block_height = int(best_block["height"])
 
-# these identifiers are for readability and shouldn't be changed
+# const identifiers, for readability
 FILE_NAME_UTXO = "utxos.txt"
 FILE_NAME_CACHE = "cache.json"
 PROPERTY_NAME_LAST_BLOCK = "last_block"
@@ -106,6 +107,9 @@ def process_blocks(utxo_set, block_hashes):
             progress_bar()
     return True
 
+# using rpc, query parts of the blockchain in small groups until we are able to build the entire UTXO set.
+# note that it would surely be faster and easier to read the data files directly. I am doing it this way
+# for fun and experimentation with Python, and to keep the node running and TODO: updating live as blocks are processed.
 def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
     step = 1000
     last_block_processed = None
@@ -147,19 +151,21 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
 
 # writes the current utxo set and other stateful properties to files
 def save(utxo_set, last_block_processed):
-    with open(FILE_NAME_UTXO, "w", encoding="utf-8") as utxo_file:
-        print("saving UTXOs to file")
-        with alive_bar(len(utxo_set)) as progress_bar:
-            for output in utxo_set:
-                data = output.serialize()
-                utxo_file.write(f"{data}\n")
-                progress_bar()
+    with DelayedKeyboardInterrupt():
+        with open(FILE_NAME_UTXO, "w", encoding="utf-8") as utxo_file:
+            print("saving UTXOs to file")
+            with alive_bar(len(utxo_set)) as progress_bar:
+                for output in utxo_set:
+                    data = output.serialize()
+                    utxo_file.write(f"{data}\n")
+                    progress_bar()
 
-    cache = {}
-    cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
-    with open(FILE_NAME_CACHE, "w", encoding="utf-8") as cache_file:
-        cache_file.write(json.dumps(cache))
+        cache = {}
+        cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
+        with open(FILE_NAME_CACHE, "w", encoding="utf-8") as cache_file:
+            cache_file.write(json.dumps(cache))
 
+# loads the utxo set and other stateful properties from files
 def load():
     utxo_set = set()
     last_block_processed = None
