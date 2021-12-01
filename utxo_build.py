@@ -42,11 +42,25 @@ best_block_height = int(best_block["height"])
 # const identifiers, for readability
 FILE_NAME_UTXO = "utxos.txt"
 FILE_NAME_CACHE = "cache.json"
+FILE_NAME_SCRIPTS = "scripts.txt"
 PROPERTY_NAME_LAST_BLOCK = "last_block"
 
 # -----------------------------------------------------------------
 #                             functions
 # -----------------------------------------------------------------
+
+# decipher each script type to determine its type and parameters note that some of this is
+# provided for us in the getrawtransaction payload, but is intentionally ignored
+def decode_transaction_scripts(transactions):
+    print("decoding transaction scripts")
+    with open(FILE_NAME_SCRIPTS, "w", encoding="utf-8") as scripts_file:
+        with alive_bar(len(transactions)) as progress_bar:
+            for output in transactions:
+                data, remaining_script = output.decode_script()
+                scripts_file.write(output.__repr__())
+                scripts_file.write(f"\n{data}, {remaining_script}\n\n")
+                progress_bar()
+
 
 # iterate over a set of block transactions, retrieve the transaction data in batches, and process them
 def process_transactions(utxo_set, txids, block_hash):
@@ -186,8 +200,8 @@ def load():
         
     return utxo_set, last_block_processed
 
-TESTING = False
-TESTING_HEIGHT = 100
+TESTING = True
+TESTING_HEIGHT = 10000
 if __name__ == "__main__":
     utxo_set, last_block_processed = load()
 
@@ -201,5 +215,8 @@ if __name__ == "__main__":
     log.debug(f"start_height {start_height}")
     log.debug(f"end_height {end_height}")
 
-    last_block_processed = build_utxo_set(utxo_set, start_height, end_height) or last_block_processed
-    save(utxo_set, last_block_processed)
+    if start_height < end_height:
+        last_block_processed = build_utxo_set(utxo_set, start_height, end_height) or last_block_processed
+        save(utxo_set, last_block_processed)
+
+    decode_transaction_scripts(utxo_set)

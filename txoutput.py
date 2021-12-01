@@ -49,6 +49,35 @@ class TxOutput(object):
             byte = byte + 1
         return total
 
+    def decode_script(self):
+        if self.script is None:
+            return None
+        
+        # read the size of the first item tin the pubkey script
+        # TODO : move this to a subroutine and loop it if necessary to read data pushes
+        operation = int(self.script[:2], 16)
+        index = 2
+
+        # any value less than 0x4c is the size of data to follow
+        data_size = 1
+        if operation < self.PUSH_ONE_SIZE:
+            data_size = operation
+        elif operation == self.PUSH_ONE_SIZE:
+            data_size = self.decode_hex_bytes_little_endian(1, self.script[2:])
+            index = 4
+        elif operation == self.PUSH_TWO_SIZE:
+            data_size = self.decode_hex_bytes_little_endian(2, self.script[2:])
+            index = 6
+        elif operation == self.PUSH_FOUR_SIZE:
+            data_size = self.decode_hex_bytes_little_endian(2, self.script[2:])
+            index = 10
+
+        pubkey_data = self.script[index:index + data_size]
+        index = index + data_size
+
+        # TODO this is very, very incomplete!
+        return pubkey_data, self.script[index:]
+
     def serialize(self):
         info = [self.hash, str(self.index)]
         if self.block is not None:
