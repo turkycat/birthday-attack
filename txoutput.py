@@ -13,6 +13,9 @@
 # since JSON can be ill formed with so much as a single extra comma at the end of the set, and because I want to be able to
 # frequently save/load progress with a file with a large set of UTXOs, I'll serialize one transaction per line.
 class TxOutput(object):
+    PUSH_ONE_SIZE = 76
+    PUSH_TWO_SIZE = 77
+    PUSH_FOUR_SIZE = 78
 
     def __init__(self, hash, index, block = None, script = None):
         self.hash = hash
@@ -31,6 +34,20 @@ class TxOutput(object):
 
     def __repr__(self):
         return f"TxOutput({self.hash}, {self.index}, {self.block}, {self.script})"
+
+    @classmethod
+    def decode_hex_bytes_little_endian(cls, num_bytes, hex_string):
+        num_characters_expected = num_bytes * 2
+        if len(hex_string) < num_characters_expected:
+           return None
+
+        total = 0
+        byte = 0
+        while byte < num_bytes:
+            current_byte = int(hex_string[byte * 2 : (byte + 1) * 2], 16) << (8 * byte)
+            total = total + current_byte
+            byte = byte + 1
+        return total
 
     def serialize(self):
         info = [self.hash, str(self.index)]
