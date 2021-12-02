@@ -15,7 +15,6 @@ re-visiting python after some years to explore new features and libraries.
 - allow spent transactions and new outputs to be built in parts, difference and unioned
   - allows for keyboard interrupt to trigger a save without distorting current set
   - allows for decoding of new transaction scripts
-- finish TxOutput.decode_script to handle more varints in a subroutine + loop and handle opcodes
 
 ## dependencies
 

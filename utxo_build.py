@@ -77,9 +77,9 @@ def decode_transaction_scripts(transactions):
     with open(FILE_PATHS[FILE_NAME_SCRIPTS], "w", encoding="utf-8") as scripts_file:
         with alive_bar(len(transactions)) as progress_bar:
             for output in transactions:
-                data, remaining_script = output.decode_script()
+                decoded_script = output.decode_script()
                 scripts_file.write(output.__repr__())
-                scripts_file.write(f"\n{data}, {remaining_script}\n\n")
+                scripts_file.write(f"\n{decoded_script}\n\n")
                 progress_bar()
 
 

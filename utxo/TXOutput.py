@@ -1,3 +1,4 @@
+import utxo.opcode as opcode
 # a serializable representation of a bitcoin transaction 
 # this class is uniquely identifiable, by hash and by equality, on only the hash and the index
 # this allows us to add it to a set with as much transaction detail as we desire, but look it up quickly with only
@@ -13,9 +14,6 @@
 # since JSON can be ill formed with so much as a single extra comma at the end of the set, and because I want to be able to
 # frequently save/load progress with a file with a large set of UTXOs, I'll serialize one transaction per line.
 class TXOutput(object):
-    PUSH_ONE_SIZE = 76
-    PUSH_TWO_SIZE = 77
-    PUSH_FOUR_SIZE = 78
 
     def __init__(self, hash, index, block = None, script = None):
         self.hash = hash
@@ -52,31 +50,41 @@ class TXOutput(object):
     def decode_script(self):
         if self.script is None:
             return None
+
+        decoded_script = []
+        # Since 2 characters = 1 byte, I'm interested to see if we get any odd script sizes or if  it is handled correctly.
+        # Rather than dissect the Bitcoin Core code, I'll print out something special temporarily. assuming we can prefix 0 to correct ?
+        if len(self.script) % 2 == 1:
+            decoded_script.append("ODD SCRIPT LENGTH CORRECTED") # TODO: remove this, obviously
+            self.script = "0" + self.script
         
-        # read the size of the first item tin the pubkey script
-        # TODO : move this to a subroutine and loop it if necessary to read data pushes
-        operation = int(self.script[:2], 16)
-        index = 2
+        for index in range(0, len(self.script), 2):
+            operation = int(self.script[index : index + 2], 16)
 
-        # any value less than 0x4c is the size of data to follow
-        data_size = 1
-        if operation < self.PUSH_ONE_SIZE:
-            data_size = operation
-        elif operation == self.PUSH_ONE_SIZE:
-            data_size = self.decode_hex_bytes_little_endian(1, self.script[2:])
-            index = 4
-        elif operation == self.PUSH_TWO_SIZE:
-            data_size = self.decode_hex_bytes_little_endian(2, self.script[2:])
-            index = 6
-        elif operation == self.PUSH_FOUR_SIZE:
-            data_size = self.decode_hex_bytes_little_endian(2, self.script[2:])
-            index = 10
+            # if the opcode isn't data, just add the name to the decoded script
+            decoded_script.append(opcode.names[operation])
+            
+            # nothing else to do
+            if operation > opcode.PUSH_FOUR_SIZE:
+                continue
 
-        pubkey_data = self.script[index:index + data_size]
-        index = index + data_size
+            data_size = 1
+            if operation < opcode.PUSH_ONE_SIZE:
+                data_size = operation
+            elif operation == opcode.PUSH_ONE_SIZE:
+                data_size = self.decode_hex_bytes_little_endian(1, self.script[index:])
+                index = index + 2
+            elif operation == opcode.PUSH_TWO_SIZE:
+                data_size = self.decode_hex_bytes_little_endian(2, self.script[index:])
+                index = index + 4
+            elif operation == opcode.PUSH_FOUR_SIZE:
+                data_size = self.decode_hex_bytes_little_endian(2, self.script[index:])
+                index = index + 8
 
-        # TODO this is very, very incomplete!
-        return pubkey_data, self.script[index:]
+            data = self.script[index:index + data_size]
+            decoded_script.append(data)
+
+        return decoded_script
 
     def serialize(self):
         info = [self.hash, str(self.index)]
