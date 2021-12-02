@@ -59,7 +59,8 @@ class TXOutput(object):
             self.script = "0" + self.script
         
         for index in range(0, len(self.script), 2):
-            operation = int(self.script[index : index + 2], 16)
+            byte_offset = index + 2
+            operation = int(self.script[index : byte_offset], 16)
 
             # if the opcode isn't data, just add the name to the decoded script
             decoded_script.append(opcode.names[operation])
@@ -72,16 +73,16 @@ class TXOutput(object):
             if operation < opcode.PUSH_ONE_SIZE:
                 data_size = operation
             elif operation == opcode.PUSH_ONE_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(1, self.script[index:])
+                data_size = self.decode_hex_bytes_little_endian(1, self.script[byte_offset:])
                 index = index + 2
             elif operation == opcode.PUSH_TWO_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(2, self.script[index:])
+                data_size = self.decode_hex_bytes_little_endian(2, self.script[byte_offset:])
                 index = index + 4
             elif operation == opcode.PUSH_FOUR_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(2, self.script[index:])
+                data_size = self.decode_hex_bytes_little_endian(4, self.script[byte_offset:])
                 index = index + 8
 
-            data = self.script[index:index + data_size]
+            data = self.script[byte_offset:byte_offset + data_size]
             decoded_script.append(data)
 
         return decoded_script

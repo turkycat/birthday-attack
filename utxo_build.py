@@ -184,6 +184,10 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
             last_save_time = time.time()
     return last_block_processed
 
+# -----------------------------------------------------------------
+#                        saving & loading
+# -----------------------------------------------------------------
+
 # writes the current utxo set and other stateful properties to files
 def save(utxo_set, last_block_processed):
     with DelayedKeyboardInterrupt():
@@ -220,6 +224,10 @@ def load():
             last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
         
     return utxo_set, last_block_processed
+
+# -----------------------------------------------------------------
+#                             main
+# -----------------------------------------------------------------
 
 TESTING = True
 TESTING_HEIGHT = 1000
