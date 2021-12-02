@@ -12,7 +12,7 @@
 # in the end, I want to stick to my guns of keeping the utxo set as small as possible in memory, which means no keys.
 # since JSON can be ill formed with so much as a single extra comma at the end of the set, and because I want to be able to
 # frequently save/load progress with a file with a large set of UTXOs, I'll serialize one transaction per line.
-class TxOutput(object):
+class TXOutput(object):
     PUSH_ONE_SIZE = 76
     PUSH_TWO_SIZE = 77
     PUSH_FOUR_SIZE = 78
@@ -24,16 +24,16 @@ class TxOutput(object):
         self.script = script
 
     def __eq__(self, other):
-        return isinstance(other, TxOutput) and (self.hash == other.hash) and (self.index == other.index)
+        return isinstance(other, TXOutput) and (self.hash == other.hash) and (self.index == other.index)
 
     def __hash__(self):
         return hash((self.hash, self.index))
 
     def __str__(self):
-        return f"<<TxOutput object: {self.hash} {self.index}>>"
+        return f"<<TXOutput object: {self.hash} {self.index}>>"
 
     def __repr__(self):
-        return f"TxOutput({self.hash}, {self.index}, {self.block}, {self.script})"
+        return f"TXOutput({self.hash}, {self.index}, {self.block}, {self.script})"
 
     @classmethod
     def decode_hex_bytes_little_endian(cls, num_bytes, hex_string):
@@ -94,4 +94,4 @@ class TxOutput(object):
         if len(info) > 3:
             block = str(info[2])
             script = str(info[3])
-        return TxOutput(hash, index, block, script)
+        return TXOutput(hash, index, block, script)

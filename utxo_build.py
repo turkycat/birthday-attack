@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import time
-from txoutput import TxOutput
+from utxo.TXOutput import TXOutput
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
@@ -106,7 +106,7 @@ def process_transactions(utxo_set, txids, block_hash):
                 if input.get("coinbase"):
                     break
 
-                spent_output = TxOutput(input["txid"], input["vout"])
+                spent_output = TXOutput(input["txid"], input["vout"])
                 if spent_output in utxo_set:
                     log.info(f"removing spent output {spent_output}")
                     utxo_set.remove(spent_output)
@@ -115,7 +115,7 @@ def process_transactions(utxo_set, txids, block_hash):
 
             # add all outputs to utxo set
             for output in transaction["vout"]:
-                new_output = TxOutput(transaction["txid"], output["n"], block_hash, output["scriptPubKey"]["hex"])
+                new_output = TXOutput(transaction["txid"], output["n"], block_hash, output["scriptPubKey"]["hex"])
                 log.info(f"adding new output with key: {new_output}")
                 utxo_set.add(new_output)
     return True
@@ -142,7 +142,7 @@ def process_blocks(utxo_set, block_hashes):
             progress_bar()
     return True
 
-# using rpc, query parts of the blockchain in small groups until we are able to build the entire UTXO set.
+# using rpc, query parts of the blockchain in small groups until we are able to build the entire utxo set.
 # note that it would surely be faster and easier to read the data files directly. I am doing it this way
 # for fun and experimentation with Python, and to keep the node running and TODO: updating live as blocks are processed.
 def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
@@ -210,7 +210,7 @@ def load():
             print("loading UTXOs from file")
             with alive_bar() as progress_bar:
                 for line in utxo_file:
-                    output = TxOutput.deserialize(line[:-1]) # remove newline character
+                    output = TXOutput.deserialize(line[:-1]) # remove newline character
                     if output is not None:
                         utxo_set.add(output)
 
