@@ -8,27 +8,6 @@ from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
 
 # -----------------------------------------------------------------
-#                             logging
-# -----------------------------------------------------------------
-
-# formatters from https://realpython.com/python-logging/
-stream_format = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
-file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
-
-# info_handler = logging.FileHandler("logfile.txt", "w", "utf-8")
-# info_handler.setLevel(logging.DEBUG)
-# info_handler.setFormatter(file_format)
-# log.addHandler(info_handler)
-
-error_handler = logging.FileHandler("errors.txt", "w", "utf-8")
-error_handler.setLevel(logging.ERROR)
-error_handler.setFormatter(file_format)
-log.addHandler(error_handler)
-
-# -----------------------------------------------------------------
 #                             globals
 # -----------------------------------------------------------------
 
@@ -39,11 +18,53 @@ best_block_hash = rpc_connection.getbestblockhash()
 best_block = rpc_connection.getblock(best_block_hash)
 best_block_height = int(best_block["height"])
 
-# const identifiers, for readability
-FILE_NAME_UTXO = "utxos.txt"
+# file and output related constants
 FILE_NAME_CACHE = "cache.json"
+FILE_NAME_ERROR = "errors.txt"
+FILE_NAME_LOG = "logfile.txt"
 FILE_NAME_SCRIPTS = "scripts.txt"
+FILE_NAME_UTXO = "utxos.txt"
+
+DIR_OUTPUT_RELATIVE = "output"
+DIR_OUTPUT_ABSOLUTE = os.path.join(os.getcwd(), DIR_OUTPUT_RELATIVE)
+FILE_PATHS = {
+    FILE_NAME_CACHE: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_CACHE),
+    FILE_NAME_ERROR: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_ERROR),
+    FILE_NAME_LOG: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_LOG),
+    FILE_NAME_SCRIPTS: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_SCRIPTS),
+    FILE_NAME_UTXO: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_UTXO)
+    }
+
+if not os.path.exists(DIR_OUTPUT_ABSOLUTE):
+    os.makedirs(DIR_OUTPUT_ABSOLUTE)
+
+# cache properties
 PROPERTY_NAME_LAST_BLOCK = "last_block"
+
+# -----------------------------------------------------------------
+#                             logging
+# -----------------------------------------------------------------
+
+# formatters from https://realpython.com/python-logging/
+stream_format = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+
+DEBUGGING = False
+if DEBUGGING:
+    info_handler = logging.FileHandler(FILE_PATHS[FILE_NAME_LOG], "w", "utf-8")
+    info_handler.setLevel(logging.DEBUG)
+    info_handler.setFormatter(file_format)
+    log.addHandler(info_handler)
+
+ERROR_LOGGING = True
+if ERROR_LOGGING:
+    error_handler = logging.FileHandler(FILE_PATHS[FILE_NAME_ERROR], "w", "utf-8")
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(file_format)
+    log.addHandler(error_handler)
 
 # -----------------------------------------------------------------
 #                             functions
@@ -53,7 +74,7 @@ PROPERTY_NAME_LAST_BLOCK = "last_block"
 # provided for us in the getrawtransaction payload, but is intentionally ignored
 def decode_transaction_scripts(transactions):
     print("decoding transaction scripts")
-    with open(FILE_NAME_SCRIPTS, "w", encoding="utf-8") as scripts_file:
+    with open(FILE_PATHS[FILE_NAME_SCRIPTS], "w", encoding="utf-8") as scripts_file:
         with alive_bar(len(transactions)) as progress_bar:
             for output in transactions:
                 data, remaining_script = output.decode_script()
@@ -166,7 +187,7 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
 # writes the current utxo set and other stateful properties to files
 def save(utxo_set, last_block_processed):
     with DelayedKeyboardInterrupt():
-        with open(FILE_NAME_UTXO, "w", encoding="utf-8") as utxo_file:
+        with open(FILE_PATHS[FILE_NAME_UTXO], "w", encoding="utf-8") as utxo_file:
             print("saving UTXOs to file")
             with alive_bar(len(utxo_set)) as progress_bar:
                 for output in utxo_set:
@@ -176,7 +197,7 @@ def save(utxo_set, last_block_processed):
 
         cache = {}
         cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
-        with open(FILE_NAME_CACHE, "w", encoding="utf-8") as cache_file:
+        with open(FILE_PATHS[FILE_NAME_CACHE], "w", encoding="utf-8") as cache_file:
             cache_file.write(json.dumps(cache))
 
 # loads the utxo set and other stateful properties from files
@@ -184,8 +205,8 @@ def load():
     utxo_set = set()
     last_block_processed = None
 
-    if os.path.exists(FILE_NAME_UTXO):
-        with open(FILE_NAME_UTXO, "r", encoding="utf-8") as utxo_file:
+    if os.path.exists(FILE_PATHS[FILE_NAME_UTXO]):
+        with open(FILE_PATHS[FILE_NAME_UTXO], "r", encoding="utf-8") as utxo_file:
             print("loading UTXOs from file")
             with alive_bar() as progress_bar:
                 for line in utxo_file:
@@ -193,15 +214,15 @@ def load():
                     if output is not None:
                         utxo_set.add(output)
 
-    if os.path.exists(FILE_NAME_CACHE):
-        with open(FILE_NAME_CACHE, "r", encoding="utf-8") as cache_file:
+    if os.path.exists(FILE_PATHS[FILE_NAME_CACHE]):
+        with open(FILE_PATHS[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
             cache = json.loads(cache_file.read())
             last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
         
     return utxo_set, last_block_processed
 
 TESTING = True
-TESTING_HEIGHT = 10000
+TESTING_HEIGHT = 1000
 if __name__ == "__main__":
     utxo_set, last_block_processed = load()
 

@@ -1,6 +1,3 @@
-logfile.txt
-errors.txt
-utxos.txt
-cache.json
 test/
+output/
 *.pyc
