@@ -1,0 +1,3 @@
+alive_progress==2.1.0
+bitcoinrpc==0.4.0
+python_bitcoinrpc==1.0

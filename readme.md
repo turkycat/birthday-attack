@@ -10,7 +10,6 @@ re-visiting python after some years to explore new features and libraries.
 
 ## todos
 
-- add a local pip install file
 - periodically check the best block hash and get all blocks up to the current height
 - allow spent transactions and new outputs to be built in parts, difference and unioned
   - allows for keyboard interrupt to trigger a save without distorting current set
@@ -20,6 +19,11 @@ re-visiting python after some years to explore new features and libraries.
 
 https://github.com/jgarzik/python-bitcoinrpc \
 https://github.com/rsalmei/alive-progress
+
+you can also use
+```bash
+pip install -r requirements.txt
+```
 
 ## setup
 
