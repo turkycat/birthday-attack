@@ -2,7 +2,7 @@ import os
 import json
 import logging
 import time
-from utxo.TXOutput import TXOutput
+from utxo.TXOutput import TXOutput, ScriptDecodingException
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from alive_progress import alive_bar
@@ -77,10 +77,15 @@ def decode_transaction_scripts(transactions):
     with open(FILE_PATHS[FILE_NAME_SCRIPTS], "w", encoding="utf-8") as scripts_file:
         with alive_bar(len(transactions)) as progress_bar:
             for output in transactions:
-                decoded_script = output.decode_script()
                 scripts_file.write(output.__repr__())
-                scripts_file.write(f"\n{decoded_script}\n\n")
-                progress_bar()
+                scripts_file.write(f"\{output.script}")
+                
+                try:
+                    decoded_script = output.decode_script()
+                    scripts_file.write(f"\n{decoded_script}\n\n")
+                    progress_bar()
+                except ScriptDecodingException as err:
+                    log.error(err)
 
 
 # iterate over a set of block transactions, retrieve the transaction data in batches, and process them

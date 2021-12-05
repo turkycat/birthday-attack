@@ -58,14 +58,16 @@ class TXOutput(object):
             decoded_script.append("ODD SCRIPT LENGTH CORRECTED") # TODO: remove this, obviously
             self.script = "0" + self.script
         
-        for index in range(0, len(self.script), 2):
-            byte_offset = index + 2
-            operation = int(self.script[index : byte_offset], 16)
+        script_position = 0
+        while script_position < len(self.script):
+            # read two characters (one byte) to determine current operation
+            operation = int(self.script[script_position : script_position + 2], 16)
+            script_position = script_position + 2
 
-            # if the opcode isn't data, just add the name to the decoded script
+            # add the name of the operation to the decoded script
             decoded_script.append(opcode.names[operation])
             
-            # nothing else to do
+            # if the opcode isn't data, there is nothing else to do
             if operation > opcode.PUSH_FOUR_SIZE:
                 continue
 
@@ -73,16 +75,21 @@ class TXOutput(object):
             if operation < opcode.PUSH_ONE_SIZE:
                 data_size = operation
             elif operation == opcode.PUSH_ONE_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(1, self.script[byte_offset:])
-                index = index + 2
+                data_size = self.decode_hex_bytes_little_endian(1, self.script[script_position:])
+                script_position = script_position + 2
             elif operation == opcode.PUSH_TWO_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(2, self.script[byte_offset:])
-                index = index + 4
+                data_size = self.decode_hex_bytes_little_endian(2, self.script[script_position:])
+                script_position = script_position + 4
             elif operation == opcode.PUSH_FOUR_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(4, self.script[byte_offset:])
-                index = index + 8
+                data_size = self.decode_hex_bytes_little_endian(4, self.script[script_position:])
+                script_position = script_position + 8
 
-            data = self.script[byte_offset:byte_offset + data_size]
+            if data_size is None:
+                raise ScriptLengthShorterThanExpected(len(decoded_script) + 1, opcode.names[operation], self.script, decoded_script)
+
+            number_of_characters_to_read = 2 * data_size
+            data = self.script[script_position : script_position + number_of_characters_to_read]
+            script_position = script_position + number_of_characters_to_read
             decoded_script.append(data)
 
         return decoded_script
@@ -104,3 +111,12 @@ class TXOutput(object):
             block = str(info[2])
             script = str(info[3])
         return TXOutput(hash, index, block, script)
+
+class ScriptDecodingException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+class ScriptLengthShorterThanExpected(ScriptDecodingException):
+    def __init__(self, param_number, opcode, script, decoded_script_so_far):
+        message = f"param number {param_number} is {opcode} but failed to read required data\n{script}\n{decoded_script_so_far}"
+        super().__init__(message)
