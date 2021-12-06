@@ -1,4 +1,11 @@
+import re
 import utxo.opcode as opcode
+from enum import Enum
+
+# note that technically this will match ["push_size_65", "02____32bytes____"] or vice-versa
+# however, it should not be necessary to break these into seperate templates because that script would be invalid
+p2pk_script_template = [re.compile(r"^push_size_(?:65|33)$"), re.compile("^0(?:4[0-9a-zA-Z]{128}$|[23][0-9a-zA-Z]{64})$"), re.compile(r"^checksig$")]
+
 # a serializable representation of a bitcoin transaction 
 # this class is uniquely identifiable, by hash and by equality, on only the hash and the index
 # this allows us to add it to a set with as much transaction detail as we desire, but look it up quickly with only
@@ -20,6 +27,7 @@ class TXOutput(object):
         self.index = index
         self.block = block
         self.script = script
+        self.type = None
 
     def __eq__(self, other):
         return isinstance(other, TXOutput) and (self.hash == other.hash) and (self.index == other.index)
@@ -37,7 +45,7 @@ class TXOutput(object):
     def decode_hex_bytes_little_endian(cls, num_bytes, hex_string):
         num_characters_expected = num_bytes * 2
         if len(hex_string) < num_characters_expected:
-           return None
+            return None
 
         total = 0
         byte = 0
@@ -46,6 +54,23 @@ class TXOutput(object):
             total = total + current_byte
             byte = byte + 1
         return total
+
+    @classmethod
+    def determine_script_type(cls, decoded_script):
+        
+        if decoded_script is None or len(decoded_script) == 0:
+            return ScriptType.UNKNOWN
+
+        # test script against P2PK template
+        if len(decoded_script) == len(p2pk_script_template):
+            for i in range(0, len(p2pk_script_template)):
+                if not p2pk_script_template[i].match(decoded_script[i]):
+                    break
+            return ScriptType.P2PK
+
+        # TODO: other script types
+
+        return ScriptType.UNKNOWN
 
     def decode_script(self):
         if self.script is None:
@@ -92,6 +117,7 @@ class TXOutput(object):
             script_position = script_position + number_of_characters_to_read
             decoded_script.append(data)
 
+        self.type = TXOutput.determine_script_type(decoded_script)
         return decoded_script
 
     def serialize(self):
@@ -111,6 +137,12 @@ class TXOutput(object):
             block = str(info[2])
             script = str(info[3])
         return TXOutput(hash, index, block, script)
+
+class ScriptType(Enum):
+    UNKNOWN = 0
+    P2PK = 1
+    P2PKH = 2
+    P2SH = 3
 
 class ScriptDecodingException(Exception):
     def __init__(self, message):
