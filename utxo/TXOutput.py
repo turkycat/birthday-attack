@@ -4,7 +4,9 @@ from enum import Enum
 
 # note that technically this will match ["push_size_65", "02____32bytes____"] or vice-versa
 # however, it should not be necessary to break these into seperate templates because that script would be invalid
-p2pk_script_template = [re.compile(r"^push_size_(?:65|33)$"), re.compile("^0(?:4[0-9a-zA-Z]{128}$|[23][0-9a-zA-Z]{64})$"), re.compile(r"^checksig$")]
+p2pk_script_template = [re.compile(r"^push_size_(?:65|33)$"), re.compile("^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$"), re.compile(r"^checksig$")]
+
+p2pkh_script_template = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equalverify$"), re.compile(r"^checksig$")]
 
 # a serializable representation of a bitcoin transaction 
 # this class is uniquely identifiable, by hash and by equality, on only the hash and the index
@@ -27,7 +29,7 @@ class TXOutput(object):
         self.index = index
         self.block = block
         self.script = script
-        self.type = None
+        self.script_type = ScriptType.NONE
 
     def __eq__(self, other):
         return isinstance(other, TXOutput) and (self.hash == other.hash) and (self.index == other.index)
@@ -60,6 +62,14 @@ class TXOutput(object):
         
         if decoded_script is None or len(decoded_script) == 0:
             return ScriptType.NONE
+
+        # test script against P2PKH template
+        if len(decoded_script) == len(p2pkh_script_template):
+            match = True
+            for i in range(0, len(p2pkh_script_template)):
+                match = match and p2pkh_script_template[i].match(decoded_script[i])
+            if match:
+                return ScriptType.P2PKH
 
         # test script against P2PK template
         if len(decoded_script) == len(p2pk_script_template):
@@ -119,7 +129,7 @@ class TXOutput(object):
             script_position = script_position + number_of_characters_to_read
             decoded_script.append(data)
 
-        self.type = TXOutput.determine_script_type(decoded_script)
+        self.script_type = TXOutput.determine_script_type(decoded_script)
         return decoded_script
 
     def serialize(self):

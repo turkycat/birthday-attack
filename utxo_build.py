@@ -82,7 +82,7 @@ def decode_transaction_scripts(transactions):
                 
                 try:
                     decoded_script = output.decode_script()
-                    scripts_file.write(f"\n{decoded_script}\n\n")
+                    scripts_file.write(f"\n{decoded_script}\n{output.script_type}\n\n")
                     progress_bar()
                 except ScriptDecodingException as err:
                     log.error(err)
@@ -234,7 +234,7 @@ def load():
 #                             main
 # -----------------------------------------------------------------
 
-TESTING = True
+TESTING = False
 TESTING_HEIGHT = 1000
 if __name__ == "__main__":
     utxo_set, last_block_processed = load()

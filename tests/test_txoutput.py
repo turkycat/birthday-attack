@@ -128,6 +128,10 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
         test_script = []
         assert ScriptType.NONE == TXOutput.determine_script_type(test_script)
 
+    # -----------------------------------------------------------------
+    #                             P2PK
+    # -----------------------------------------------------------------
+
     # valid P2PK w/ uncompressed public key
     def test_valid_p2pk_uncompressed_key(self):
         test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
@@ -181,6 +185,75 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     # invalid P2PK with empty key
     def test_invalid_p2pk_compressed_key_empty(self):
         test_script = ["push_size_33", "", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK with invalid chars in key 1
+    def test_invalid_p2pk_compressed_key_invalid_chars_01(self):
+        test_script = ["push_size_33", "0214f296079b181ab76cd817f8hello1d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK with invalid chars in key 2
+    def test_invalid_p2pk_compressed_key_invalid_chars_02(self):
+        test_script = ["push_size_33", "0214f296079b181ab76cd817f8ba5b#1d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+        
+    # script is empty list
+    def test_invalid_script_list_too_short(self):
+        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # script is empty list
+    def test_invalid_script_list_too_long(self):
+        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # -----------------------------------------------------------------
+    #                             P2PKH
+    # -----------------------------------------------------------------
+    
+    # valid P2PKH
+    def test_valid_p2pkh(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+        
+    # invalid P2PKH with missing key
+    def test_invalid_p2pkh_missing_addr(self):
+        test_script = ["dup", "hash160", "push_size_20", "equalverify", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PKH with empty key
+    def test_invalid_p2pkh_empty_addr(self):
+        test_script = ["dup", "hash160", "push_size_20", "", "equalverify", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+    
+    # invalid P2PKH with key too short
+    def test_invalid_p2pkh_key_too_short(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9e60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+    
+    # invalid P2PKH with key too long
+    def test_invalid_p2pkh_key_too_long(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9bed60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PKH with invalid chars in key 1
+    def test_invalid_p2pkh_invalid_chars_01(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871fhellofb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PKH with invalid chars in key 2
+    def test_invalid_p2pkh_invalid_chars_02(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c8#1f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+    
+    # invalid P2PKH with missing checksig
+    def test_invalid_p2pkh_list_too_short(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+    
+    # invalid P2PKH with double checksig
+    def test_invalid_p2pkh_list_too_long(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig", "checksig"]
         assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
 
 if __name__ == "__main__":
