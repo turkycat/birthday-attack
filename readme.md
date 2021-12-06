@@ -38,7 +38,7 @@ pip install alive-progress
 
 ## tests
 
-from root directory, simply run
+from `tests/` directory, simply run
 ```bash
 python -m unittest
 ```

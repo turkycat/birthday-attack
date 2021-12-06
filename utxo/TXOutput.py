@@ -59,14 +59,16 @@ class TXOutput(object):
     def determine_script_type(cls, decoded_script):
         
         if decoded_script is None or len(decoded_script) == 0:
-            return ScriptType.UNKNOWN
+            return ScriptType.NONE
 
         # test script against P2PK template
         if len(decoded_script) == len(p2pk_script_template):
+            match = True
             for i in range(0, len(p2pk_script_template)):
-                if not p2pk_script_template[i].match(decoded_script[i]):
-                    break
-            return ScriptType.P2PK
+                # if match is set to None it will never call .match again, although loop continues ¯\_(ツ)_/¯
+                match = match and p2pk_script_template[i].match(decoded_script[i])
+            if match:
+                return ScriptType.P2PK
 
         # TODO: other script types
 
@@ -139,10 +141,11 @@ class TXOutput(object):
         return TXOutput(hash, index, block, script)
 
 class ScriptType(Enum):
-    UNKNOWN = 0
-    P2PK = 1
-    P2PKH = 2
-    P2SH = 3
+    NONE = 0
+    UNKNOWN = 1
+    P2PK = 2
+    P2PKH = 3
+    P2SH = 4
 
 class ScriptDecodingException(Exception):
     def __init__(self, message):

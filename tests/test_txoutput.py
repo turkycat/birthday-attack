@@ -118,20 +118,70 @@ class TestTXOutputLittleEndianRead(unittest.TestCase):
 
 class TextTXOutputDetermineScriptType(unittest.TestCase):
 
+    # script is None
+    def test_invalid_script_none(self):
+        test_script = None
+        assert ScriptType.NONE == TXOutput.determine_script_type(test_script)
+
+    # script is empty list
+    def test_invalid_script_empty_list(self):
+        test_script = []
+        assert ScriptType.NONE == TXOutput.determine_script_type(test_script)
+
     # valid P2PK w/ uncompressed public key
-    def test_simple_p2pk_full_key(self):
+    def test_valid_p2pk_uncompressed_key(self):
         test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
         assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
 
     # valid P2PK w/ compressed public key 1
-    def test_simple_p2pk_compressed_key_01(self):
+    def test_valid_p2pk_compressed_key_01(self):
         test_script = ["push_size_33", "0214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
         assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
 
     # valid P2PK w/ compressed public key 2
-    def test_simple_p2pk_compressed_key_02(self):
+    def test_valid_p2pk_compressed_key_02(self):
         test_script = ["push_size_33", "03831cfea00b5cfcd97a12fd14b469d9385140d187d2bd8add9a1044685db9552b", "checksig"]
         assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK w/ uncompressed public key (too long)
+    def test_invalid_p2pk_uncompressed_key_too_long(self):
+        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b123d5043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK w/ uncompressed public key (too short)
+    def test_invalid_p2pk_uncompressed_key_too_short(self):
+        test_script = ["push_size_65", "04aadcac168ef4c4cc7a116575b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK w/ compressed public key (too long)
+    def test_invalid_p2pk_compressed_key_too_long(self):
+        test_script = ["push_size_33", "0214f296079b181abd76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK w/ compressed public key (too short)
+    def test_invalid_p2pk_compressed_key_too_short(self):
+        test_script = ["push_size_33", "03831cfea00b5cfcd9a12fd14b469d9385140d187d2bd8add9a1044685db9552b", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK with incorrect first opcode
+    def test_invalid_p2pk_compressed_key_incorect_opcode_01(self):
+        test_script = ["push_size_63", "0214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK with incorrect last opcode
+    def test_invalid_p2pk_compressed_key_incorect_opcode_02(self):
+        test_script = ["push_size_33", "0214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksigverify"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK with missing key
+    def test_invalid_p2pk_compressed_key_missing(self):
+        test_script = ["push_size_33", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
+
+    # invalid P2PK with empty key
+    def test_invalid_p2pk_compressed_key_empty(self):
+        test_script = ["push_size_33", "", "checksig"]
+        assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
 
 if __name__ == "__main__":
     unittest.main()
