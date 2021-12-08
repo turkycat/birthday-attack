@@ -29,7 +29,6 @@ class TXOutput(object):
         self.index = index
         self.block = block
         self.script = script
-        self.script_type = ScriptType.NONE
 
     def __eq__(self, other):
         return isinstance(other, TXOutput) and (self.hash == other.hash) and (self.index == other.index)
@@ -81,7 +80,6 @@ class TXOutput(object):
                 return ScriptType.P2PK
 
         # TODO: other script types
-
         return ScriptType.UNKNOWN
 
     def decode_script(self):
@@ -129,8 +127,8 @@ class TXOutput(object):
             script_position = script_position + number_of_characters_to_read
             decoded_script.append(data)
 
-        self.script_type = TXOutput.determine_script_type(decoded_script)
-        return decoded_script
+        script_type = TXOutput.determine_script_type(decoded_script)
+        return decoded_script, script_type
 
     def serialize(self):
         info = [self.hash, str(self.index)]

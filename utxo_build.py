@@ -27,7 +27,7 @@ FILE_NAME_UTXO = "utxos.txt"
 
 DIR_OUTPUT_RELATIVE = "output"
 DIR_OUTPUT_ABSOLUTE = os.path.join(os.getcwd(), DIR_OUTPUT_RELATIVE)
-FILE_PATHS = {
+file_paths = {
     FILE_NAME_CACHE: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_CACHE),
     FILE_NAME_ERROR: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_ERROR),
     FILE_NAME_LOG: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_LOG),
@@ -54,14 +54,14 @@ log.setLevel(logging.INFO)
 
 DEBUGGING = False
 if DEBUGGING:
-    info_handler = logging.FileHandler(FILE_PATHS[FILE_NAME_LOG], "w", "utf-8")
+    info_handler = logging.FileHandler(file_paths[FILE_NAME_LOG], "w", "utf-8")
     info_handler.setLevel(logging.DEBUG)
     info_handler.setFormatter(file_format)
     log.addHandler(info_handler)
 
 ERROR_LOGGING = True
 if ERROR_LOGGING:
-    error_handler = logging.FileHandler(FILE_PATHS[FILE_NAME_ERROR], "w", "utf-8")
+    error_handler = logging.FileHandler(file_paths[FILE_NAME_ERROR], "w", "utf-8")
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(file_format)
     log.addHandler(error_handler)
@@ -74,19 +74,21 @@ if ERROR_LOGGING:
 # provided for us in the getrawtransaction payload, but is intentionally ignored
 def decode_transaction_scripts(transactions):
     print("decoding transaction scripts")
-    with open(FILE_PATHS[FILE_NAME_SCRIPTS], "w", encoding="utf-8") as scripts_file:
+    with open(file_paths[FILE_NAME_SCRIPTS], "w", encoding="utf-8") as scripts_file:
         with alive_bar(len(transactions)) as progress_bar:
             for output in transactions:
                 scripts_file.write(output.__repr__())
-                scripts_file.write(f"\{output.script}")
-                
+                scripts_file.write(f"\n{output.script}\n")
+
                 try:
                     decoded_script = output.decode_script()
-                    scripts_file.write(f"\n{decoded_script}\n{output.script_type}\n\n")
-                    progress_bar()
+                    scripts_file.write(f"{decoded_script}\n")#{output.script_type}\n")
                 except ScriptDecodingException as err:
+                    log.error(output.__repr__())
                     log.error(err)
 
+                scripts_file.write("\n")
+                progress_bar()
 
 # iterate over a set of block transactions, retrieve the transaction data in batches, and process them
 def process_transactions(utxo_set, txids, block_hash):
@@ -196,7 +198,7 @@ def build_utxo_set(utxo_set, start_height, end_height = best_block_height):
 # writes the current utxo set and other stateful properties to files
 def save(utxo_set, last_block_processed):
     with DelayedKeyboardInterrupt():
-        with open(FILE_PATHS[FILE_NAME_UTXO], "w", encoding="utf-8") as utxo_file:
+        with open(file_paths[FILE_NAME_UTXO], "w", encoding="utf-8") as utxo_file:
             print("saving UTXOs to file")
             with alive_bar(len(utxo_set)) as progress_bar:
                 for output in utxo_set:
@@ -206,7 +208,7 @@ def save(utxo_set, last_block_processed):
 
         cache = {}
         cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
-        with open(FILE_PATHS[FILE_NAME_CACHE], "w", encoding="utf-8") as cache_file:
+        with open(file_paths[FILE_NAME_CACHE], "w", encoding="utf-8") as cache_file:
             cache_file.write(json.dumps(cache))
 
 # loads the utxo set and other stateful properties from files
@@ -214,8 +216,8 @@ def load():
     utxo_set = set()
     last_block_processed = None
 
-    if os.path.exists(FILE_PATHS[FILE_NAME_UTXO]):
-        with open(FILE_PATHS[FILE_NAME_UTXO], "r", encoding="utf-8") as utxo_file:
+    if os.path.exists(file_paths[FILE_NAME_UTXO]):
+        with open(file_paths[FILE_NAME_UTXO], "r", encoding="utf-8") as utxo_file:
             print("loading UTXOs from file")
             with alive_bar() as progress_bar:
                 for line in utxo_file:
@@ -223,8 +225,8 @@ def load():
                     if output is not None:
                         utxo_set.add(output)
 
-    if os.path.exists(FILE_PATHS[FILE_NAME_CACHE]):
-        with open(FILE_PATHS[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
+    if os.path.exists(file_paths[FILE_NAME_CACHE]):
+        with open(file_paths[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
             cache = json.loads(cache_file.read())
             last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
         
