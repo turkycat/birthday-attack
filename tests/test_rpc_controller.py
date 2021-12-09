@@ -43,6 +43,7 @@ class TestRpcController(unittest.TestCase):
         controller = RpcController()
         best_block_hash = controller.best_block_hash()
         assert type(best_block_hash) is str
+        assert len(best_block_hash) == 64
 
 if __name__ == "__main__":
     unittest.main()

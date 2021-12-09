@@ -31,13 +31,13 @@ class RpcController(object):
             # the '__conn' object directly as rpc_connection.__conn would invoke __getattr__. The below is a hack.
             self.rpc_connection.__dict__["_AuthServiceProxy__conn"].close()
 
-    def best_block_hash(self):
+    def request(self, service_name):
         attempt = 0
-        while attempt < self.retries:
+        while attempt < RpcController.retries:
             attempt += 1
-
+            
             try:
-                response = self.rpc_connection.getbestblockhash()
+                response = self.rpc_connection.__getattr__(service_name)()
                 return response
             except JSONRPCException as err:
                 log.error(f"RPC Exception {err}")
@@ -45,4 +45,7 @@ class RpcController(object):
                 log.error(f"IO Error {err}")
 
             self.connect()
+        
+    def best_block_hash(self):
+        return self.request("getbestblockhash")
                 
