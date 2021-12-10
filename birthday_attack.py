@@ -54,6 +54,7 @@ log.setLevel(logging.INFO)
 
 DEBUGGING = False
 if DEBUGGING:
+    log.setLevel(logging.DEBUG)
     info_handler = logging.FileHandler(file_paths[FILE_NAME_LOG], "w", "utf-8")
     info_handler.setLevel(logging.DEBUG)
     info_handler.setFormatter(file_format)
