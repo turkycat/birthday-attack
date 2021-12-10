@@ -1,7 +1,4 @@
-import os
-import json
-import logging
-import time
+import sys, os, glob, logging, time, json
 from utxo.TXOutput import TXOutput, ScriptDecodingException
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
@@ -120,6 +117,14 @@ def process_block(rpc, utxo_set, block_height):
 #                        saving & loading
 # -----------------------------------------------------------------
 
+def clean_outputs():
+    files = glob.glob(DIR_OUTPUT_ABSOLUTE + "/*")
+    for file in files:
+        try:
+            os.remove(file)
+        except OSError as err:
+            log.error(f"OSError occurred while attempting to delete {file}, {err}")
+
 # writes the current utxo set and other stateful properties to files
 def save(utxo_set, last_block_processed):
     with DelayedKeyboardInterrupt():
@@ -165,6 +170,19 @@ MINUTES_BETWEEN_SAVES = 20.0
 SECONDS_PER_MINUTE = 60.0
 STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
+OPTION_CLEAN = "--clean"
+SHORT_OPTION_CLEAN = "-c"
+
+def evaulate_arguments():
+    options = {
+        OPTION_CLEAN: False
+    }
+
+    for index in range(1, len(sys.argv)):
+        if sys.argv[index] == SHORT_OPTION_CLEAN or sys.argv[index] == OPTION_CLEAN:
+            options[OPTION_CLEAN] = True
+    return options
+
 def get_target_block_height(rpc):
     best_block_hash = rpc.getbestblockhash()
     best_block = rpc.getblock(best_block_hash)
@@ -175,6 +193,10 @@ def get_target_block_height(rpc):
 TESTING = True
 TESTING_HEIGHT = 1000
 if __name__ == "__main__":
+    options = evaulate_arguments()
+    if options[OPTION_CLEAN]:
+        clean_outputs()
+
     utxo_set, last_block_processed = load()
     utxo_set = utxo_set or set()
     last_block_processed = last_block_processed or 0
@@ -185,9 +207,11 @@ if __name__ == "__main__":
     target_block_height = get_target_block_height(rpc)
     running = True
     while running:
+        print(f"reading blocks", end="\r")
         while last_block_processed < target_block_height and time.time() < next_save_time:
             try:
                 last_block_processed = process_block(rpc, utxo_set, last_block_processed + 1) or last_block_processed
+                print(".", end="\r")
             except KeyboardInterrupt:
                 log.info(f"KeyboardInterrupt intercepted at {time.time()}")
                 print(f"Keyboard interrupt received, saving and stopping...")
