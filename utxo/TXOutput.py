@@ -24,10 +24,10 @@ p2pkh_script_template = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.comp
 # frequently save/load progress with a file with a large set of UTXOs, I'll serialize one transaction per line.
 class TXOutput(object):
 
-    def __init__(self, hash, index, block = None, script = None):
+    def __init__(self, hash, index, block_height = None, script = None):
         self.hash = hash
         self.index = index
-        self.block = block
+        self.block_height = block_height
         self.script = script
 
     def __eq__(self, other):
@@ -40,7 +40,7 @@ class TXOutput(object):
         return f"<<TXOutput object: {self.hash} {self.index}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.block}, {self.script})"
+        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.script})"
 
     @classmethod
     def decode_hex_bytes_little_endian(cls, num_bytes, hex_string):
@@ -132,8 +132,8 @@ class TXOutput(object):
 
     def serialize(self):
         info = [self.hash, str(self.index)]
-        if self.block is not None:
-            info.append(self.block)
+        if self.block_height is not None:
+            info.append(self.block_height)
             if self.script is not None:
                 info.append(self.script)
         return ",".join(info)
@@ -144,9 +144,9 @@ class TXOutput(object):
         hash = str(info[0])
         index = int(info[1])
         if len(info) > 3:
-            block = str(info[2])
+            block_height = str(info[2])
             script = str(info[3])
-        return TXOutput(hash, index, block, script)
+        return TXOutput(hash, index, block_height, script)
 
 class ScriptType(Enum):
     NONE = 0

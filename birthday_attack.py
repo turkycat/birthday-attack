@@ -82,7 +82,7 @@ def decode_transaction_scripts(transactions):
                 progress_bar()
 
 # iterate over a set of block transactions, retrieve the transaction data in batches, and process them
-def process_transactions(rpc, utxo_set, txids, block_hash):
+def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
     for txid in txids:
         transaction = rpc.getrawtransaction(txid, True, block_hash)
         for input in transaction["vin"]:
@@ -100,7 +100,7 @@ def process_transactions(rpc, utxo_set, txids, block_hash):
 
         # add all outputs to utxo set
         for output in transaction["vout"]:
-            new_output = TXOutput(transaction["txid"], output["n"], block_hash, output["scriptPubKey"]["hex"])
+            new_output = TXOutput(transaction["txid"], output["n"], block_height, output["scriptPubKey"]["hex"])
             log.info(f"adding new output with key: {new_output}")
             utxo_set.add(new_output)
     return True
@@ -110,7 +110,9 @@ def process_block(rpc, utxo_set, block_height):
     block = rpc.getblock(block_hash)
     txids = block["tx"]
     log.info(f"block {block_height} with hash {block_hash} contains {len(txids)} transactions")
-    if process_transactions(rpc, utxo_set, txids, block_hash):
+    
+    # TODO: return sets to perform unions and intersections
+    if process_transactions(rpc, utxo_set, txids, block_height, block_hash):
         return block_height
 
 # -----------------------------------------------------------------
@@ -129,7 +131,7 @@ def clean_outputs():
 def save(utxo_set, last_block_processed):
     with DelayedKeyboardInterrupt():
         with open(file_paths[FILE_NAME_UTXO], "w", encoding="utf-8") as utxo_file:
-            print("saving UTXOs to file")
+            print(f"saving utxos to file at block {last_block_processed}")
             with alive_bar(len(utxo_set)) as progress_bar:
                 for output in utxo_set:
                     data = output.serialize()
@@ -172,7 +174,6 @@ STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
 OPTION_CLEAN = "--clean"
 SHORT_OPTION_CLEAN = "-c"
-
 def evaulate_arguments():
     options = {
         OPTION_CLEAN: False
@@ -191,7 +192,7 @@ def get_target_block_height(rpc):
     return target_block_height
 
 TESTING = True
-TESTING_HEIGHT = 1000
+TESTING_HEIGHT = 10000
 if __name__ == "__main__":
     options = evaulate_arguments()
     if options[OPTION_CLEAN]:
@@ -207,11 +208,11 @@ if __name__ == "__main__":
     target_block_height = get_target_block_height(rpc)
     running = True
     while running:
-        print(f"reading blocks", end="\r")
         while last_block_processed < target_block_height and time.time() < next_save_time:
+            next_block = last_block_processed + 1
+            print(f"reading block {next_block}", end = "\r")
             try:
-                last_block_processed = process_block(rpc, utxo_set, last_block_processed + 1) or last_block_processed
-                print(".", end="\r")
+                last_block_processed = process_block(rpc, utxo_set, next_block) or last_block_processed
             except KeyboardInterrupt:
                 log.info(f"KeyboardInterrupt intercepted at {time.time()}")
                 print(f"Keyboard interrupt received, saving and stopping...")
