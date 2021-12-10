@@ -11,14 +11,28 @@ re-visiting python after some years to explore new features and libraries.
 ## todos
 
 - finish script type matching function `determine_script_type`
-- periodically check the best block hash and get all blocks up to the current height
 - allow spent transactions and new outputs to be built in parts, difference and unioned
   - allows for keyboard interrupt to trigger a save without distorting current set
   - allows for decoding of new transaction scripts
 
 ## setup
 
-set `bitcoin.conf` property `rpcservertimeout=1200` to guarantee that the RPC connection doesn't get terminated early. if this is undesirable or impossible, the `utxo_build.py` should be modified to reconnect when `IOError` is caught or reconnect before each new batch of block hashes is retrieved as default timeouts period of 30s can occur when saving/loading progress.
+### bitcoin core configuration
+
+verify your bitcoin.conf file contains
+```
+rpcuser=<some username>
+rpcpassword=<some password>
+rpcservertimeout=<some value>
+```
+
+I typically set my the `rpcservertimeout` value high, such as 1200. However, 30 (the default) is fine with the use of `RpcController`.
+
+### RpcController
+
+This repository contains an `RpcController` class which wraps the behavior of `python-bitcoinrpc` making it much easier to use. An RPC connection will be established automatically and maintained. If the connection is severed either through timeout or failure, reconnection attempts will be made. All RPC exceptions are caught and managed by the controller, making usage in a primary application much easier and cleaner, although errors will not be immediately surfaced.
+
+To configure `RpcController`, edit `config.py` in the module directory to define your authentication credentials.
 
 ### dependencies
 
