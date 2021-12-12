@@ -518,3 +518,13 @@ RESERVED_252 = 252
 RESERVED_253 = 253
 RESERVED_254 = 254
 RESERVED_255 = 255
+
+# these opcodes are marked as DISABLED and will always immediately mark a transaction as invalid and therefore unspendable.
+invalid_opcodes = [
+    DISABLED_CAT, DISABLED_SUBSTR, DISABLED_LEFT, DISABLED_RIGHT, DISABLED_INVERT, DISABLED_AND, DISABLED_OR, DISABLED_XOR,
+    DISABLED_MUL2, DISABLED_DIV2, DISABLED_MUL, DISABLED_DIV, DISABLED_MOD, DISABLED_LSHIFT, DISABLED_RSHIFT
+]
+invalid_opcode_names = [ names[opcode] for opcode in invalid_opcodes ]
+
+noop_codes = [NOP, NOP4, NOP5, NOP6, NOP7, NOP8, NOP9, NOP10]
+noop_code_names = [ names[opcode] for opcode in noop_codes ]

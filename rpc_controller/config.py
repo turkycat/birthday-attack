@@ -8,8 +8,8 @@
 #    git update-index --no-skip-worktree ./config.py
 
 rpc_info = {
-    "username": "default",
-    "password": "default",
+    "username": "turkyrpc",
+    "password": "turkypass",
     "port": 8332,
     "timeout": 30
 }

@@ -13,6 +13,7 @@ FILE_NAME_CACHE = "cache.json"
 FILE_NAME_ERROR = "errors.txt"
 FILE_NAME_LOG = "logfile.txt"
 FILE_NAME_SCRIPTS = "scripts.txt"
+FILE_NAME_UNKNOWN_SCRIPTS = "unknown_scripts.txt"
 FILE_NAME_UTXO = "utxos.txt"
 
 DIR_OUTPUT_RELATIVE = "output"
@@ -22,6 +23,7 @@ file_paths = {
     FILE_NAME_ERROR: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_ERROR),
     FILE_NAME_LOG: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_LOG),
     FILE_NAME_SCRIPTS: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_SCRIPTS),
+    FILE_NAME_UNKNOWN_SCRIPTS: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_UNKNOWN_SCRIPTS),
     FILE_NAME_UTXO: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_UTXO)
     }
 
@@ -52,7 +54,7 @@ if DEBUGGING:
 
 ERROR_LOGGING = True
 if ERROR_LOGGING:
-    error_handler = logging.FileHandler(file_paths[FILE_NAME_ERROR], "w", "utf-8")
+    error_handler = logging.FileHandler(file_paths[FILE_NAME_ERROR], "a", "utf-8")
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(file_format)
     log.addHandler(error_handler)
@@ -103,6 +105,16 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
             new_output = TXOutput(transaction["txid"], output["n"], block_height, output["scriptPubKey"]["hex"])
             log.info(f"adding new output with key: {new_output}")
             utxo_set.add(new_output)
+
+            try:
+                decoded_script, script_type = new_output.decode_script()
+                if script_type == script_type.UNKNOWN:
+                    with open(file_paths[FILE_NAME_UNKNOWN_SCRIPTS], "a", encoding = "utf-8") as unknown_scripts_file:
+                        unknown_scripts_file.write(f"{new_output.serialize()}\n")
+                        unknown_scripts_file.write(f"{decoded_script}\n\n")
+            except ScriptDecodingException as err:
+                log.error(f"ScriptDecodingException occurred at block {block_height}\n{new_output}\n{err}")
+                pass
     return True
 
 def process_block(rpc, utxo_set, block_height):
@@ -156,6 +168,7 @@ def load():
                     output = TXOutput.deserialize(line[:-1]) # remove newline character
                     if output is not None:
                         utxo_set.add(output)
+                    progress_bar()
 
     if os.path.exists(file_paths[FILE_NAME_CACHE]):
         with open(file_paths[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
@@ -184,6 +197,8 @@ def evaulate_arguments():
             options[OPTION_CLEAN] = True
     return options
 
+TESTING = False
+TESTING_HEIGHT = 10000
 def get_target_block_height(rpc):
     best_block_hash = rpc.getbestblockhash()
     best_block = rpc.getblock(best_block_hash)
@@ -191,8 +206,6 @@ def get_target_block_height(rpc):
     target_block_height = (TESTING and TESTING_HEIGHT) or best_block_height - STAY_BEHIND_BEST_BLOCK_OFFSET
     return target_block_height
 
-TESTING = True
-TESTING_HEIGHT = 10000
 if __name__ == "__main__":
     options = evaulate_arguments()
     if options[OPTION_CLEAN]:
@@ -205,9 +218,11 @@ if __name__ == "__main__":
     next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
     rpc = RpcController()
 
-    target_block_height = get_target_block_height(rpc)
+    
     running = True
     while running:
+        target_block_height = get_target_block_height(rpc)
+
         while last_block_processed < target_block_height and time.time() < next_save_time:
             next_block = last_block_processed + 1
             print(f"reading block {next_block}", end = "\r")
@@ -222,7 +237,6 @@ if __name__ == "__main__":
         save(utxo_set, last_block_processed)
         last_save_time = time.time()
         next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
-        target_block_height = get_target_block_height(rpc)
 
         # this is here to prevent infinite looping over the save functionality and is temporary.
         # In the future, we will spend the remaining time trying to generate collisions with

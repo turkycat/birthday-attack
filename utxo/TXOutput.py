@@ -58,11 +58,11 @@ class TXOutput(object):
 
     @classmethod
     def determine_script_type(cls, decoded_script):
-        
         if decoded_script is None or len(decoded_script) == 0:
             return ScriptType.NONE
 
-        # test script against P2PKH template
+        # most scripts will be of standard formats, and therefore basic pattern matching will work for the vast majority
+        # test script against P2PKH template, by far the most common script type
         if len(decoded_script) == len(p2pkh_script_template):
             match = True
             for i in range(0, len(p2pkh_script_template)):
@@ -70,7 +70,7 @@ class TXOutput(object):
             if match:
                 return ScriptType.P2PKH
 
-        # test script against P2PK template
+        # test script against P2PK template, the OG standard
         if len(decoded_script) == len(p2pk_script_template):
             match = True
             for i in range(0, len(p2pk_script_template)):
@@ -78,6 +78,23 @@ class TXOutput(object):
                 match = match and p2pk_script_template[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2PK
+
+        simplified_script = []
+        for i in range(0, len(decoded_script)):
+            # for the purposes of this program, any unspendable output is considered invalid
+            if decoded_script[i] == opcode.names[opcode.RETURN_] or decoded_script[i] in opcode.invalid_opcode_names:
+                return ScriptType.INVALID
+
+            # skip all NOOP codes
+            if decoded_script[i] in opcode.noop_code_names:
+                continue
+            
+            simplified_script.append(decoded_script[i])
+
+        # if we've simplified the script at all, we can evaluate again against the common patterns.
+        # note the script length can only be shortened and this recursion can only occur once, at most.
+        if len(simplified_script) < len(decoded_script):
+            return TXOutput.determine_script_type(simplified_script)
 
         # TODO: other script types
         return ScriptType.UNKNOWN
@@ -87,12 +104,6 @@ class TXOutput(object):
             return None
 
         decoded_script = []
-        # Since 2 characters = 1 byte, I'm interested to see if we get any odd script sizes or if  it is handled correctly.
-        # Rather than dissect the Bitcoin Core code, I'll print out something special temporarily. assuming we can prefix 0 to correct ?
-        if len(self.script) % 2 == 1:
-            decoded_script.append("ODD SCRIPT LENGTH CORRECTED") # TODO: remove this, obviously
-            self.script = "0" + self.script
-        
         script_position = 0
         while script_position < len(self.script):
             # read two characters (one byte) to determine current operation
@@ -133,7 +144,7 @@ class TXOutput(object):
     def serialize(self):
         info = [self.hash, str(self.index)]
         if self.block_height is not None:
-            info.append(self.block_height)
+            info.append(str(self.block_height))
             if self.script is not None:
                 info.append(self.script)
         return ",".join(info)
@@ -144,16 +155,17 @@ class TXOutput(object):
         hash = str(info[0])
         index = int(info[1])
         if len(info) > 3:
-            block_height = str(info[2])
+            block_height = int(info[2])
             script = str(info[3])
         return TXOutput(hash, index, block_height, script)
 
 class ScriptType(Enum):
     NONE = 0
-    UNKNOWN = 1
-    P2PK = 2
-    P2PKH = 3
-    P2SH = 4
+    INVALID = 1
+    UNKNOWN = 2
+    P2PK = 3
+    P2PKH = 4
+    P2SH = 5
 
 class ScriptDecodingException(Exception):
     def __init__(self, message):

@@ -3,10 +3,10 @@ from bitcoinrpc.authproxy import AuthServiceProxy, JSONRPCException
 from .config import rpc_info
 
 stream_format = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+log = logging.getLogger(__name__)
 
 DEBUG = False
 if DEBUG:
-    log = logging.getLogger(__name__)
     debug_handler = logging.StreamHandler()
     log.setLevel(logging.DEBUG)
     debug_handler.setFormatter(stream_format)
