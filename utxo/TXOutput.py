@@ -7,6 +7,7 @@ from enum import Enum
 p2pk_script_template = [re.compile(r"^push_size_(?:65|33)$"), re.compile("^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$"), re.compile(r"^checksig$")]
 
 p2pkh_script_template = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equalverify$"), re.compile(r"^checksig$")]
+p2sh_script_template = [re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equal$")]
 
 # a serializable representation of a bitcoin transaction 
 # this class is uniquely identifiable, by hash and by equality, on only the hash and the index
@@ -78,6 +79,15 @@ class TXOutput(object):
                 match = match and p2pk_script_template[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2PK
+
+        # test script against P2SH template
+        if len(decoded_script) == len(p2sh_script_template):
+            match = True
+            for i in range(0, len(p2sh_script_template)):
+                # if match is set to None it will never call .match again, although loop continues ¯\_(ツ)_/¯
+                match = match and p2sh_script_template[i].match(decoded_script[i])
+            if match:
+                return ScriptType.P2SH
 
         simplified_script = []
         for i in range(0, len(decoded_script)):
@@ -166,6 +176,8 @@ class ScriptType(Enum):
     P2PK = 3
     P2PKH = 4
     P2SH = 5
+    P2WPKH = 6
+    P2WSH = 7
 
 class ScriptDecodingException(Exception):
     def __init__(self, message):
