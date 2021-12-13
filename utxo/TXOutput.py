@@ -2,13 +2,6 @@ import re
 import utxo.opcode as opcode
 from enum import Enum
 
-# note that technically this will match ["push_size_65", "02____32bytes____"] or vice-versa
-# however, it should not be necessary to break these into seperate templates because that script would be invalid
-p2pk_script_template = [re.compile(r"^push_size_(?:65|33)$"), re.compile("^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$"), re.compile(r"^checksig$")]
-
-p2pkh_script_template = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equalverify$"), re.compile(r"^checksig$")]
-p2sh_script_template = [re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equal$")]
-
 # a serializable representation of a bitcoin transaction 
 # this class is uniquely identifiable, by hash and by equality, on only the hash and the index
 # this allows us to add it to a set with as much transaction detail as we desire, but look it up quickly with only
@@ -64,28 +57,28 @@ class TXOutput(object):
 
         # most scripts will be of standard formats, and therefore basic pattern matching will work for the vast majority
         # test script against P2PKH template, by far the most common script type
-        if len(decoded_script) == len(p2pkh_script_template):
+        if len(decoded_script) == len(ScriptTypeTemplate.P2PKH):
             match = True
-            for i in range(0, len(p2pkh_script_template)):
-                match = match and p2pkh_script_template[i].match(decoded_script[i])
+            for i in range(0, len(ScriptTypeTemplate.P2PKH)):
+                match = match and ScriptTypeTemplate.P2PKH[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2PKH
 
         # test script against P2PK template, the OG standard
-        if len(decoded_script) == len(p2pk_script_template):
+        if len(decoded_script) == len(ScriptTypeTemplate.P2PK):
             match = True
-            for i in range(0, len(p2pk_script_template)):
+            for i in range(0, len(ScriptTypeTemplate.P2PK)):
                 # if match is set to None it will never call .match again, although loop continues ¯\_(ツ)_/¯
-                match = match and p2pk_script_template[i].match(decoded_script[i])
+                match = match and ScriptTypeTemplate.P2PK[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2PK
 
         # test script against P2SH template
-        if len(decoded_script) == len(p2sh_script_template):
+        if len(decoded_script) == len(ScriptTypeTemplate.P2SH):
             match = True
-            for i in range(0, len(p2sh_script_template)):
+            for i in range(0, len(ScriptTypeTemplate.P2SH)):
                 # if match is set to None it will never call .match again, although loop continues ¯\_(ツ)_/¯
-                match = match and p2sh_script_template[i].match(decoded_script[i])
+                match = match and ScriptTypeTemplate.P2SH[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2SH
 
@@ -178,6 +171,18 @@ class ScriptType(Enum):
     P2SH = 5
     P2WPKH = 6
     P2WSH = 7
+
+class ScriptTypeTemplate(object):
+    """
+    note that matching patterns is much easier than validating them in the first place. for example, P2PK template
+    below technically will match ["push_size_65", "02____32bytes____"] or vice-versa, which would not be valid Script.
+    however, it should not be necessary to break these into seperate templates because that script would be invalid.
+    Therefore, we can take some shortcuts when detecting the type of a transaction that has already been mined.
+    """
+    # standard patterns
+    P2PK = [re.compile(r"^push_size_(?:65|33)$"), re.compile("^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$"), re.compile(r"^checksig$")]
+    P2PKH = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equalverify$"), re.compile(r"^checksig$")]
+    P2SH = [re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equal$")]
 
 class ScriptDecodingException(Exception):
     def __init__(self, message):
