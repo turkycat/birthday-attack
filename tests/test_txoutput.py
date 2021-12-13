@@ -305,5 +305,104 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
         test_script = ["hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal", "equal"]
         assert ScriptType.UNKNOWN == TXOutput.determine_script_type(test_script)
 
+    # -----------------------------------------------------------------
+    #                             NOOP
+    # -----------------------------------------------------------------
+
+    # valid P2PK w/ NOOPs - trying for all codes and all positions
+    def test_valid_p2pk_noop_01(self):
+        test_script = ["nop", "push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_02(self):
+        test_script = ["push_size_65", "nop", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_03(self):
+        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_04(self):
+        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig", "nop"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_05(self):
+        test_script = ["push_size_65", "nop4", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_06(self):
+        test_script = ["push_size_65", "nop5", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_07(self):
+        test_script = ["push_size_65", "nop6", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_08(self):
+        test_script = ["push_size_65", "nop7", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_09(self):
+        test_script = ["push_size_65", "nop8", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_10(self):
+        test_script = ["push_size_65", "nop9", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+        
+    def test_valid_p2pk_noop_11(self):
+        test_script = ["push_size_65", "nop10", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
+        assert ScriptType.P2PK == TXOutput.determine_script_type(test_script)
+    
+    # valid P2PKHs with noops
+    def test_valid_p2pkh_with_noop_01(self):
+        test_script = ["nop", "dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+    
+    def test_valid_p2pkh_with_noop_02(self):
+        test_script = ["dup", "nop", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+    
+    def test_valid_p2pkh_with_noop_03(self):
+        test_script = ["dup", "hash160", "nop", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+    
+    def test_valid_p2pkh_with_noop_04(self):
+        test_script = ["dup", "hash160", "push_size_20", "nop", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+    
+    def test_valid_p2pkh_with_noop_05(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "nop", "equalverify", "checksig"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+    
+    def test_valid_p2pkh_with_noop_06(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "nop", "checksig"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+    
+    def test_valid_p2pkh_with_noop_07(self):
+        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig", "nop"]
+        assert ScriptType.P2PKH == TXOutput.determine_script_type(test_script)
+
+    # valid P2SH with noops
+    def test_valid_p2sh_with_noop_01(self):
+        test_script = ["nop", "hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal"]
+        assert ScriptType.P2SH == TXOutput.determine_script_type(test_script)
+
+    def test_valid_p2sh_with_noop_02(self):
+        test_script = ["hash160", "nop", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal"]
+        assert ScriptType.P2SH == TXOutput.determine_script_type(test_script)
+
+    def test_valid_p2sh_with_noop_03(self):
+        test_script = ["hash160", "push_size_20", "nop", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal"]
+        assert ScriptType.P2SH == TXOutput.determine_script_type(test_script)
+
+    def test_valid_p2sh_with_noop_04(self):
+        test_script = ["hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "nop", "equal"]
+        assert ScriptType.P2SH == TXOutput.determine_script_type(test_script)
+
+    def test_valid_p2sh_with_noop_05(self):
+        test_script = ["hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal", "nop"]
+        assert ScriptType.P2SH == TXOutput.determine_script_type(test_script)
+
 if __name__ == "__main__":
     unittest.main()
