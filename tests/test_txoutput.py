@@ -410,23 +410,59 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
         test_script = []
         assert ScriptType.NONE == TXOutput.determine_script_type_is_multisig(test_script)
 
+    def test_multisig_01_of_01(self):
+        test_script = ["push_positive_1",
+            COMPRESSED_PUBLIC_KEY_02,
+            "push_positive_1", "checkmultisig"]
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.MULTISIG
+        assert M == 1
+        assert N == 1
+
+    def test_multisig_01_of_02(self):
+        test_script = ["push_positive_1",
+            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
+            "push_positive_2", "checkmultisig"]
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.MULTISIG
+        assert M == 2
+        assert N == 1
+
+    def test_multisig_01_of_03(self):
+        test_script = ["push_positive_1",
+            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
+            "push_positive_3", "checkmultisig"]
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.MULTISIG
+        assert M == 3
+        assert N == 1
+
+    def test_multisig_02_of_02(self):
+        test_script = ["push_positive_2",
+            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
+            "push_positive_2", "checkmultisig"]
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.MULTISIG
+        assert M == 2
+        assert N == 2
+
     def test_multisig_02_of_03(self):
         test_script = ["push_positive_2",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_3", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
         assert script_type == ScriptType.MULTISIG
-        assert N == 2
-        assert M == 3
+        assert M == 2
+        assert N == 3
 
     def test_multisig_03_of_03(self):
         test_script = ["push_positive_3",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_3", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
         assert script_type == ScriptType.MULTISIG
-        assert N == 3
         assert M == 3
+        assert N == 3
 
     def test_multisig_02_of_03_with_determine_script_type_function(self):
         test_script = ["push_positive_2",
@@ -437,137 +473,110 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
         assert script_type == ScriptType.MULTISIG
 
     """
-    if this were production code I would write a function to generate all valid combinations of N-of-M scripts but I
+    if this were production code I would write a function to generate all invalid combinations of M-of-N scripts but I
     just don't care right now. if there are issues I'll see them in the unknown set. maybe I'll do this later ¯\_(ツ)_/¯
     """
-    def test_multisig_01_of_01(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_1", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 1
-
-    def test_multisig_01_of_02(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_2", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 2
-
-    def test_multisig_01_of_03(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_3", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 3
-
-    def test_multisig_01_of_04(self):
+    def test_multisig_invalid_01_of_04(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02,
             "push_positive_4", "checkmultisig"
             ]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 4
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_05(self):
+    def test_multisig_invalid_01_of_05(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_5", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 5
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_06(self):
+    def test_multisig_invalid_01_of_06(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_6", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 6
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_07(self):
+    def test_multisig_invalid_01_of_07(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02,
             "push_positive_7", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 7
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_08(self):
+    def test_multisig_invalid_01_of_08(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_8", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 8
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_09(self):
+    def test_multisig_invalid_01_of_09(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_9", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 9
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_10(self):
+    def test_multisig_invalid_01_of_10(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02,
             "push_positive_10", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 10
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_11(self):
+    def test_multisig_invalid_01_of_11(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_11", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 11
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_12(self):
+    def test_multisig_invalid_01_of_12(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_12", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 12
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_13(self):
+    def test_multisig_invalid_01_of_13(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
@@ -575,12 +584,12 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02,
             "push_positive_13", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 13
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_14(self):
+    def test_multisig_invalid_01_of_14(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
@@ -588,12 +597,12 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_14", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 14
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
-    def test_multisig_01_of_15(self):
+    def test_multisig_invalid_01_of_15(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
@@ -601,10 +610,10 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_15", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
-        assert script_type == ScriptType.MULTISIG
-        assert N == 1
-        assert M == 15
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
+        assert script_type == ScriptType.UNKNOWN
+        assert M == 0
+        assert N == 0
 
     def test_multisig_invalid_01_of_16(self):
         test_script = ["push_positive_1",
@@ -615,19 +624,19 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             COMPRESSED_PUBLIC_KEY_02,
             "push_positive_16", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
         assert script_type == ScriptType.UNKNOWN
-        assert N == 0
         assert M == 0
+        assert N == 0
 
     def test_multisig_invalid_01_of_01_total_less_than_expected(self):
         test_script = ["push_positive_1",
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_1", "checkmultisig"]
-        script_type, N, M = TXOutput.determine_script_type_is_multisig(test_script)
+        script_type, M, N = TXOutput.determine_script_type_is_multisig(test_script)
         assert script_type == ScriptType.UNKNOWN
-        assert N == 0
         assert M == 0
+        assert N == 0
 
 if __name__ == "__main__":
     unittest.main()

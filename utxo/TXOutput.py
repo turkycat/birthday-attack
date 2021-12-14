@@ -51,6 +51,44 @@ class TXOutput(object):
         return total
 
     @classmethod
+    def determine_script_type_is_multisig(cls, decoded_script):
+        if decoded_script is None or len(decoded_script) == 0:
+            return ScriptType.NONE
+
+        """
+        note that this function only evaluates standard M-of-N multisig patterns
+        """
+
+        # verify OP_PUSH_POSITIVE_M, extract M
+        match = ScriptTypeTemplate.POSITIVE_DIGIT.match(decoded_script[0])
+        if not match:
+            return ScriptType.UNKNOWN, 0, 0
+        required_sigs = int(match.group(1))
+
+        # read some number of public keys
+        index = 1
+        while index < len(decoded_script) and ScriptTypeTemplate.PUBLIC_KEY.match(decoded_script[index]):
+            index += 1
+        total_keys = index - 1
+
+        # verify OP_PUSH_POSITIVE_N, extract N
+        match = ScriptTypeTemplate.POSITIVE_DIGIT.match(decoded_script[index])
+        if not match:
+            return ScriptType.UNKNOWN, 0, 0
+        expected_total_keys = int(match.group(1))
+        index += 1
+
+        MAX_STANDARD_PUBLIC_KEYS = 3
+        if not (expected_total_keys == total_keys and required_sigs <= total_keys and \
+            total_keys <= MAX_STANDARD_PUBLIC_KEYS and required_sigs <= MAX_STANDARD_PUBLIC_KEYS and \
+            index == (len(decoded_script) - 1) and decoded_script[index] == opcode.names[opcode.CHECKMULTISIG]):
+            # this is really unexpected and is more of a "invalid script" case
+            # ScriptDecodingException might be better here but I'd rather see this turn up in the unknown set.
+            return ScriptType.UNKNOWN, 0, 0
+
+        return ScriptType.MULTISIG, required_sigs, total_keys
+
+    @classmethod
     def determine_script_type(cls, decoded_script):
         if decoded_script is None or len(decoded_script) == 0:
             return ScriptType.NONE
@@ -81,7 +119,7 @@ class TXOutput(object):
             if match:
                 return ScriptType.P2SH
 
-        multisig_type, N, M = TXOutput.determine_script_type_is_multisig(decoded_script)
+        multisig_type, M, N = TXOutput.determine_script_type_is_multisig(decoded_script)
         if multisig_type == ScriptType.MULTISIG:
             return ScriptType.MULTISIG
 
@@ -105,44 +143,6 @@ class TXOutput(object):
 
         # TODO: other script types
         return ScriptType.UNKNOWN
-
-    @classmethod
-    def determine_script_type_is_multisig(cls, decoded_script):
-        if decoded_script is None or len(decoded_script) == 0:
-            return ScriptType.NONE
-
-        """
-        note that this function only evaluates standard N-of-M multisig patterns
-        """
-
-        # verify OP_PUSH_POSITIVE_N, extract N
-        match = ScriptTypeTemplate.POSITIVE_DIGIT.match(decoded_script[0])
-        if not match:
-            return ScriptType.UNKNOWN, 0, 0
-        required_sigs = int(match.group(1))
-
-        # read some number of public keys
-        index = 1
-        while index < len(decoded_script) and ScriptTypeTemplate.PUBLIC_KEY.match(decoded_script[index]):
-            index += 1
-        total_keys = index - 1
-
-        # verify OP_PUSH_POSITIVE_M, extract M
-        match = ScriptTypeTemplate.POSITIVE_DIGIT.match(decoded_script[index])
-        if not match:
-            return ScriptType.UNKNOWN, 0, 0
-        expected_total_keys = int(match.group(1))
-        index += 1
-
-        MAX_STANDARD_PUBLIC_KEYS = 15
-        if not (expected_total_keys == total_keys and required_sigs <= total_keys and \
-            total_keys <= MAX_STANDARD_PUBLIC_KEYS and required_sigs <= MAX_STANDARD_PUBLIC_KEYS and \
-            index == (len(decoded_script) - 1) and decoded_script[index] == opcode.names[opcode.CHECKMULTISIG]):
-            # this is really unexpected and is more of a "invalid script" case
-            # ScriptDecodingException might be better here but I'd rather see this turn up in the unknown set.
-            return ScriptType.UNKNOWN, 0, 0
-
-        return ScriptType.MULTISIG, required_sigs, total_keys
 
     def decode_script(self):
         if self.script is None:
