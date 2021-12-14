@@ -1,5 +1,5 @@
 import sys, os, glob, logging, time, json
-from transactions.tx import TXOutput, ScriptDecodingException
+from transactions.tx import Transaction, TXOutput, ScriptDecodingException
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
 from alive_progress import alive_bar
@@ -74,8 +74,8 @@ def decode_transaction_scripts(transactions):
                 scripts_file.write(f"\n{output.script}\n")
 
                 try:
-                    decoded_script = output.decode_script()
-                    scripts_file.write(f"{decoded_script}\n")#{output.script_type}\n")
+                    decoded_script = Transaction.decode_script(output.script)
+                    scripts_file.write(f"{decoded_script}\n")
                 except ScriptDecodingException as err:
                     log.error(output.__repr__())
                     log.error(err)
@@ -108,7 +108,8 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
             utxo_set.add(new_output)
 
             try:
-                decoded_script, script_type = new_output.decode_script()
+                decoded_script = Transaction.decode_script(new_output.script)
+                script_type = TXOutput.determine_script_type(decoded_script)
                 if script_type == script_type.UNKNOWN:
                     with open(file_paths[FILE_NAME_UNKNOWN_SCRIPTS], "a", encoding = "utf-8") as unknown_scripts_file:
                         unknown_scripts_file.write(f"{new_output.serialize()}\n")
