@@ -25,6 +25,9 @@ class Transaction(object):
     def __hash__(self):
         return hash((self.hash, self.index))
 
+    def __eq__(self, other):
+        return isinstance(other, Transaction) and (self.hash == other.hash) and (self.index == other.index)
+
     def __str__(self):
         return f"<<Transaction object: {self.hash} {self.index}>>"
 
@@ -89,14 +92,14 @@ class Transaction(object):
 
 class TXOutput(Transaction):
 
-    def __init__(self, hash, index, block_height, script, value):
+    def __init__(self, hash, index, block_height, value, script):
         super().__init__(hash, index)
         self.block_height = block_height
-        self.script = script
         self.value = value
+        self.script = script
 
-    def __eq__(self, other):
-        return isinstance(other, TXOutput) and (self.hash == other.hash) and (self.index == other.index)
+    def __hash__(self):
+        return super().__hash__()
 
     def __str__(self):
         return f"<<TXOutput object: {self.hash} {self.index}, {self.block_height}, {self.script}, {self.value}>>"
