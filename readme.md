@@ -12,8 +12,10 @@ re-visiting python after some years to explore new features and libraries.
 
 - finish script type matching function `determine_script_type`
 - allow spent transactions and new outputs to be built in parts, difference and unioned
-  - allows for keyboard interrupt to trigger a save without distorting current set
   - allows for decoding of new transaction scripts
+
+consider:
+- count script types during blockchain analysis?
 
 ## setup
 

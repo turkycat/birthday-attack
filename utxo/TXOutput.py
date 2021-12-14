@@ -60,6 +60,7 @@ class TXOutput(object):
         if len(decoded_script) == len(ScriptTypeTemplate.P2PKH):
             match = True
             for i in range(0, len(ScriptTypeTemplate.P2PKH)):
+                # if match is set to None it will never call .match again, although loop continues ¯\_(ツ)_/¯
                 match = match and ScriptTypeTemplate.P2PKH[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2PKH
@@ -68,7 +69,6 @@ class TXOutput(object):
         if len(decoded_script) == len(ScriptTypeTemplate.P2PK):
             match = True
             for i in range(0, len(ScriptTypeTemplate.P2PK)):
-                # if match is set to None it will never call .match again, although loop continues ¯\_(ツ)_/¯
                 match = match and ScriptTypeTemplate.P2PK[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2PK
@@ -77,16 +77,20 @@ class TXOutput(object):
         if len(decoded_script) == len(ScriptTypeTemplate.P2SH):
             match = True
             for i in range(0, len(ScriptTypeTemplate.P2SH)):
-                # if match is set to None it will never call .match again, although loop continues ¯\_(ツ)_/¯
                 match = match and ScriptTypeTemplate.P2SH[i].match(decoded_script[i])
             if match:
                 return ScriptType.P2SH
+
+        multisig_type, N, M = TXOutput.determine_script_type_is_multisig(decoded_script)
+        if multisig_type == ScriptType.MULTISIG:
+            return ScriptType.MULTISIG
 
         simplified_script = []
         for i in range(0, len(decoded_script)):
             # for the purposes of this program, any unspendable output is considered invalid
             if decoded_script[i] == opcode.names[opcode.RETURN_] or decoded_script[i] in opcode.invalid_opcode_names:
                 return ScriptType.INVALID
+                
 
             # skip all NOOP codes
             if decoded_script[i] in opcode.noop_code_names:
@@ -101,6 +105,44 @@ class TXOutput(object):
 
         # TODO: other script types
         return ScriptType.UNKNOWN
+
+    @classmethod
+    def determine_script_type_is_multisig(cls, decoded_script):
+        if decoded_script is None or len(decoded_script) == 0:
+            return ScriptType.NONE
+
+        """
+        note that this function only evaluates standard N-of-M multisig patterns
+        """
+
+        # verify OP_PUSH_POSITIVE_N, extract N
+        match = ScriptTypeTemplate.POSITIVE_DIGIT.match(decoded_script[0])
+        if not match:
+            return ScriptType.UNKNOWN, 0, 0
+        required_sigs = int(match.group(1))
+
+        # read some number of public keys
+        index = 1
+        while index < len(decoded_script) and ScriptTypeTemplate.PUBLIC_KEY.match(decoded_script[index]):
+            index += 1
+        total_keys = index - 1
+
+        # verify OP_PUSH_POSITIVE_M, extract M
+        match = ScriptTypeTemplate.POSITIVE_DIGIT.match(decoded_script[index])
+        if not match:
+            return ScriptType.UNKNOWN, 0, 0
+        expected_total_keys = int(match.group(1))
+        index += 1
+
+        MAX_STANDARD_PUBLIC_KEYS = 15
+        if not (expected_total_keys == total_keys and required_sigs <= total_keys and \
+            total_keys <= MAX_STANDARD_PUBLIC_KEYS and required_sigs <= MAX_STANDARD_PUBLIC_KEYS and \
+            index == (len(decoded_script) - 1) and decoded_script[index] == opcode.names[opcode.CHECKMULTISIG]):
+            # this is really unexpected and is more of a "invalid script" case
+            # ScriptDecodingException might be better here but I'd rather see this turn up in the unknown set.
+            return ScriptType.UNKNOWN, 0, 0
+
+        return ScriptType.MULTISIG, required_sigs, total_keys
 
     def decode_script(self):
         if self.script is None:
@@ -171,6 +213,7 @@ class ScriptType(Enum):
     P2SH = 5
     P2WPKH = 6
     P2WSH = 7
+    MULTISIG = 8
 
 class ScriptTypeTemplate(object):
     """
@@ -179,10 +222,15 @@ class ScriptTypeTemplate(object):
     however, it should not be necessary to break these into seperate templates because that script would be invalid.
     Therefore, we can take some shortcuts when detecting the type of a transaction that has already been mined.
     """
+    # building blocks
+    POSITIVE_DIGIT = re.compile(r"push_positive_(\d{1,2})")
+    PUBLIC_KEY = re.compile(r"^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$")
+    PUBLIC_KEY_HASH = re.compile(r"^[0-9a-fA-F]{40}$")
+
     # standard patterns
-    P2PK = [re.compile(r"^push_size_(?:65|33)$"), re.compile("^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$"), re.compile(r"^checksig$")]
-    P2PKH = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equalverify$"), re.compile(r"^checksig$")]
-    P2SH = [re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), re.compile("^[0-9a-fA-F]{40}$"), re.compile(r"^equal$")]
+    P2PK = [re.compile(r"^push_size_(?:65|33)$"), PUBLIC_KEY, re.compile(r"^checksig$")]
+    P2PKH = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), PUBLIC_KEY_HASH, re.compile(r"^equalverify$"), re.compile(r"^checksig$")]
+    P2SH = [re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), PUBLIC_KEY_HASH, re.compile(r"^equal$")]
 
 class ScriptDecodingException(Exception):
     def __init__(self, message):
