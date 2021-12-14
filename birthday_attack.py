@@ -1,5 +1,5 @@
 import sys, os, glob, logging, time, json
-from utxo.TXOutput import TXOutput, ScriptDecodingException
+from transactions.tx import TXOutput, ScriptDecodingException
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
 from alive_progress import alive_bar

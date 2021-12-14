@@ -1,6 +1,6 @@
 import unittest
 from context import *
-from utxo.TXOutput import *
+from transactions.tx import *
 
 TRANSACTION_01_HASH = "5a189242e85c9670cefac381de8423c11fd9d4b0ebcf86468282e0fc1fe78fb8"
 TRANSACTION_01_INDEX = 0

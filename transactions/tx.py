@@ -1,5 +1,5 @@
 import re
-import utxo.opcode as opcode
+import transactions.opcode as opcode
 from enum import Enum
 
 # a serializable representation of a bitcoin transaction 
