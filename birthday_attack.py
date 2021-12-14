@@ -102,7 +102,8 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
 
         # add all outputs to utxo set
         for output in transaction["vout"]:
-            new_output = TXOutput(transaction["txid"], output["n"], block_height, output["scriptPubKey"]["hex"])
+            script_pub_key = output["scriptPubKey"]
+            new_output = TXOutput(transaction["txid"], output["n"], block_height, script_pub_key["hex"], script_pub_key["value"])
             log.info(f"adding new output with key: {new_output}")
             utxo_set.add(new_output)
 

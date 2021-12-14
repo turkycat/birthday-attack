@@ -18,11 +18,12 @@ from enum import Enum
 # frequently save/load progress with a file with a large set of UTXOs, I'll serialize one transaction per line.
 class TXOutput(object):
 
-    def __init__(self, hash, index, block_height = None, script = None):
+    def __init__(self, hash, index, block_height = None, script = None, value = None):
         self.hash = hash
         self.index = index
         self.block_height = block_height
         self.script = script
+        self.value = value
 
     def __eq__(self, other):
         return isinstance(other, TXOutput) and (self.hash == other.hash) and (self.index == other.index)
@@ -34,7 +35,7 @@ class TXOutput(object):
         return f"<<TXOutput object: {self.hash} {self.index}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.script})"
+        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.script}, {self.value})"
 
     @classmethod
     def decode_hex_bytes_little_endian(cls, num_bytes, hex_string):
@@ -192,6 +193,8 @@ class TXOutput(object):
             info.append(str(self.block_height))
             if self.script is not None:
                 info.append(self.script)
+                if self.value is not None:
+                    info.append(self.value)
         return ",".join(info)
 
     @classmethod
@@ -199,10 +202,12 @@ class TXOutput(object):
         info = data.split(",")
         hash = str(info[0])
         index = int(info[1])
-        if len(info) > 3:
+        if len(info) > 4:
             block_height = int(info[2])
             script = str(info[3])
-        return TXOutput(hash, index, block_height, script)
+            value = float(info[4])
+            return TXOutput(hash, index, block_height, script, value)
+        return TXOutput(hash, index)
 
 class ScriptType(Enum):
     NONE = 0
