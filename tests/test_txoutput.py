@@ -11,29 +11,29 @@ UNCOMPRESSED_PUBLIC_KEY = "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d006
 COMPRESSED_PUBLIC_KEY_01 = "0214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420"
 COMPRESSED_PUBLIC_KEY_02 = "03831cfea00b5cfcd97a12fd14b469d9385140d187d2bd8add9a1044685db9552b"
 
-tx_with_no_script = Transaction(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
+tx_01 = Transaction(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
 
 class TestTXOutputLittleEndianRead(unittest.TestCase):
 
     def test_too_short_01(self):
         hex_string = "f"
-        val = TXOutput.decode_hex_bytes_little_endian(1, hex_string)
-        assert val == None
+        with self.assertRaises(ScriptLengthShorterThanExpected):
+            val = TXOutput.decode_hex_bytes_little_endian(1, hex_string)
 
     def test_too_short_02(self):
         hex_string = "ff"
-        val = TXOutput.decode_hex_bytes_little_endian(2, hex_string)
-        assert val == None
+        with self.assertRaises(ScriptLengthShorterThanExpected):
+            val = TXOutput.decode_hex_bytes_little_endian(2, hex_string)
 
     def test_too_short_03(self):
         hex_string = "fff"
-        val = TXOutput.decode_hex_bytes_little_endian(2, hex_string)
-        assert val == None
+        with self.assertRaises(ScriptLengthShorterThanExpected):
+            val = TXOutput.decode_hex_bytes_little_endian(2, hex_string)
 
     def test_too_short_04(self):
         hex_string = "fffffff"
-        val = TXOutput.decode_hex_bytes_little_endian(4, hex_string)
-        assert val == None
+        with self.assertRaises(ScriptLengthShorterThanExpected):
+            val = TXOutput.decode_hex_bytes_little_endian(4, hex_string)
 
     def test_extra_characters_01(self):
         hex_string = "ffffffffffffffffffffff"
@@ -396,6 +396,26 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
         assert ScriptType.P2SH == TXOutput.locking_script_type(test_script)
 
     # -----------------------------------------------------------------
+    #                             SEGWIT
+    # -----------------------------------------------------------------
+
+    def test_valid_p2wpkh(self):
+        test_script = ["push_size_0", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a"]
+        assert ScriptType.P2WPKH == TXOutput.locking_script_type(test_script)
+
+    def test_valid_p2wpkh_decode(self):
+        test_script = "001499fc7624fa2943151239b814e77407f6b9cf1099"
+        assert ScriptType.P2WPKH == TXOutput.locking_script_type(Transaction.decode_script(test_script))
+
+    def test_valid_p2wsh(self):
+        test_script = ["push_size_0", "push_size_32", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160ae9c3dd0c07aac76179ebc76a"]
+        assert ScriptType.P2WSH == TXOutput.locking_script_type(test_script)
+
+    def test_valid_p2wsh_decode(self):
+        test_script = "002099fc7624fa2943151239b814e77407f6b9cf1099e9c3dd0c07aac76179ebc76a"
+        assert ScriptType.P2WSH == TXOutput.locking_script_type(Transaction.decode_script(test_script))
+
+    # -----------------------------------------------------------------
     #                             MULTISIG
     # -----------------------------------------------------------------
 
@@ -468,7 +488,6 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
             COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
             "push_positive_3", "checkmultisig"]
         script_type = TXOutput.locking_script_type(test_script)
-        print(script_type)
         assert script_type == ScriptType.MULTISIG
 
     """
