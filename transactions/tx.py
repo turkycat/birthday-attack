@@ -1,6 +1,8 @@
 import re
-import utxo.opcode as opcode
+import transactions.opcode as opcode
 from enum import Enum
+
+NUM_CHARACTERS_PER_BYTE = 2
 
 # a serializable representation of a bitcoin transaction 
 # this class is uniquely identifiable, by hash and by equality, on only the hash and the index
@@ -16,31 +18,29 @@ from enum import Enum
 # in the end, I want to stick to my guns of keeping the utxo set as small as possible in memory, which means no keys.
 # since JSON can be ill formed with so much as a single extra comma at the end of the set, and because I want to be able to
 # frequently save/load progress with a file with a large set of UTXOs, I'll serialize one transaction per line.
-class TXOutput(object):
+class Transaction(object):
 
-    def __init__(self, hash, index, block_height = None, script = None):
+    def __init__(self, hash, index):
         self.hash = hash
         self.index = index
-        self.block_height = block_height
-        self.script = script
-
-    def __eq__(self, other):
-        return isinstance(other, TXOutput) and (self.hash == other.hash) and (self.index == other.index)
 
     def __hash__(self):
         return hash((self.hash, self.index))
 
+    def __eq__(self, other):
+        return isinstance(other, Transaction) and (self.hash == other.hash) and (self.index == other.index)
+
     def __str__(self):
-        return f"<<TXOutput object: {self.hash} {self.index}>>"
+        return f"<<Transaction object: {self.hash} {self.index}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.script})"
+        return f"Transaction({self.hash}, {self.index})"
 
     @classmethod
     def decode_hex_bytes_little_endian(cls, num_bytes, hex_string):
-        num_characters_expected = num_bytes * 2
-        if len(hex_string) < num_characters_expected:
-            return None
+        characters_expected = num_bytes * NUM_CHARACTERS_PER_BYTE
+        if len(hex_string) < characters_expected:
+            raise ScriptLengthShorterThanExpected(num_bytes, hex_string)
 
         total = 0
         byte = 0
@@ -51,7 +51,64 @@ class TXOutput(object):
         return total
 
     @classmethod
-    def determine_script_type_is_multisig(cls, decoded_script):
+    def decode_script(self, serialized_script):
+        if serialized_script is None:
+            return None
+
+        decoded_script = []
+        script_position = 0
+        while script_position < len(serialized_script):
+            # read two characters (one byte) to determine current operation
+            operation = int(serialized_script[script_position : script_position + NUM_CHARACTERS_PER_BYTE], 16)
+            script_position = script_position + NUM_CHARACTERS_PER_BYTE
+
+            # add the name of the operation to the decoded script
+            decoded_script.append(opcode.names[operation])
+            
+            # if the opcode is zero data or no data, there is nothing else to do
+            if operation == opcode.PUSH_SIZE_0 or operation > opcode.PUSH_FOUR_SIZE:
+                continue
+
+            data_size = 0
+            if operation < opcode.PUSH_ONE_SIZE:
+                data_size = operation
+            else:
+                if operation == opcode.PUSH_ONE_SIZE:
+                    bytes_to_decode = 1
+                elif operation == opcode.PUSH_TWO_SIZE:
+                    bytes_to_decode = 2
+                else: #opcode.PUSH_FOUR_SIZE
+                    bytes_to_decode = 4
+
+                data_size = self.decode_hex_bytes_little_endian(bytes_to_decode, serialized_script[script_position:])
+                script_position = script_position + (NUM_CHARACTERS_PER_BYTE * bytes_to_decode)
+
+            number_of_characters_to_read = NUM_CHARACTERS_PER_BYTE * data_size
+            data = serialized_script[script_position : script_position + number_of_characters_to_read]
+            script_position = script_position + number_of_characters_to_read
+            decoded_script.append(data)
+
+        return decoded_script
+
+class TXOutput(Transaction):
+
+    def __init__(self, hash, index, block_height, value, script):
+        super().__init__(hash, index)
+        self.block_height = block_height
+        self.value = value
+        self.serialized_script = script
+
+    def __hash__(self):
+        return super().__hash__()
+
+    def __str__(self):
+        return f"<<TXOutput object: {self.hash} {self.index}, {self.block_height}, {self.serialized_script}, {self.value}>>"
+
+    def __repr__(self):
+        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.serialized_script}, {self.value})"
+
+    @classmethod
+    def locking_script_is_multisig(cls, decoded_script):
         if decoded_script is None or len(decoded_script) == 0:
             return ScriptType.NONE
 
@@ -89,7 +146,7 @@ class TXOutput(object):
         return ScriptType.MULTISIG, required_sigs, total_keys
 
     @classmethod
-    def determine_script_type(cls, decoded_script):
+    def locking_script_type(cls, decoded_script):
         if decoded_script is None or len(decoded_script) == 0:
             return ScriptType.NONE
 
@@ -119,7 +176,15 @@ class TXOutput(object):
             if match:
                 return ScriptType.P2SH
 
-        multisig_type, M, N = TXOutput.determine_script_type_is_multisig(decoded_script)
+        # test script against segwit patterns, both of which have the same decoded script length and 0'th param (version)
+        if len(decoded_script) == len(ScriptTypeTemplate.P2WPKH) and ScriptTypeTemplate.P2WPKH[0].match(decoded_script[0]):
+            if ScriptTypeTemplate.P2WPKH[1].match(decoded_script[1]) and ScriptTypeTemplate.P2WPKH[2].match(decoded_script[2]):
+                return ScriptType.P2WPKH
+
+            if ScriptTypeTemplate.P2WSH[1].match(decoded_script[1]) and ScriptTypeTemplate.P2WSH[2].match(decoded_script[2]):
+                return ScriptType.P2WSH
+
+        multisig_type, M, N = TXOutput.locking_script_is_multisig(decoded_script)
         if multisig_type == ScriptType.MULTISIG:
             return ScriptType.MULTISIG
 
@@ -128,8 +193,7 @@ class TXOutput(object):
             # for the purposes of this program, any unspendable output is considered invalid
             if decoded_script[i] == opcode.names[opcode.RETURN_] or decoded_script[i] in opcode.invalid_opcode_names:
                 return ScriptType.INVALID
-                
-
+            
             # skip all NOOP codes
             if decoded_script[i] in opcode.noop_code_names:
                 continue
@@ -139,70 +203,27 @@ class TXOutput(object):
         # if we've simplified the script at all, we can evaluate again against the common patterns.
         # note the script length can only be shortened and this recursion can only occur once, at most.
         if len(simplified_script) < len(decoded_script):
-            return TXOutput.determine_script_type(simplified_script)
+            return TXOutput.locking_script_type(simplified_script)
 
         # TODO: other script types
         return ScriptType.UNKNOWN
 
-    def decode_script(self):
-        if self.script is None:
-            return None
-
-        decoded_script = []
-        script_position = 0
-        while script_position < len(self.script):
-            # read two characters (one byte) to determine current operation
-            operation = int(self.script[script_position : script_position + 2], 16)
-            script_position = script_position + 2
-
-            # add the name of the operation to the decoded script
-            decoded_script.append(opcode.names[operation])
-            
-            # if the opcode isn't data, there is nothing else to do
-            if operation > opcode.PUSH_FOUR_SIZE:
-                continue
-
-            data_size = 1
-            if operation < opcode.PUSH_ONE_SIZE:
-                data_size = operation
-            elif operation == opcode.PUSH_ONE_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(1, self.script[script_position:])
-                script_position = script_position + 2
-            elif operation == opcode.PUSH_TWO_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(2, self.script[script_position:])
-                script_position = script_position + 4
-            elif operation == opcode.PUSH_FOUR_SIZE:
-                data_size = self.decode_hex_bytes_little_endian(4, self.script[script_position:])
-                script_position = script_position + 8
-
-            if data_size is None:
-                raise ScriptLengthShorterThanExpected(len(decoded_script) + 1, opcode.names[operation], self.script, decoded_script)
-
-            number_of_characters_to_read = 2 * data_size
-            data = self.script[script_position : script_position + number_of_characters_to_read]
-            script_position = script_position + number_of_characters_to_read
-            decoded_script.append(data)
-
-        script_type = TXOutput.determine_script_type(decoded_script)
-        return decoded_script, script_type
-
     def serialize(self):
-        info = [self.hash, str(self.index)]
-        if self.block_height is not None:
-            info.append(str(self.block_height))
-            if self.script is not None:
-                info.append(self.script)
+        info = [self.hash, str(self.index), str(self.block_height), self.serialized_script, str(self.value)]
         return ",".join(info)
 
     @classmethod
     def deserialize(cls, data):
         info = data.split(",")
+        if len(info) < 5:
+            return None
+
         hash = str(info[0])
         index = int(info[1])
-        if len(info) > 3:
-            block_height = int(info[2])
-            script = str(info[3])
-        return TXOutput(hash, index, block_height, script)
+        block_height = int(info[2])
+        script = str(info[3])
+        value = float(info[4])
+        return TXOutput(hash, index, block_height, script, value)
 
 class ScriptType(Enum):
     NONE = 0
@@ -226,17 +247,21 @@ class ScriptTypeTemplate(object):
     POSITIVE_DIGIT = re.compile(r"push_positive_(\d{1,2})")
     PUBLIC_KEY = re.compile(r"^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$")
     PUBLIC_KEY_HASH = re.compile(r"^[0-9a-fA-F]{40}$")
+    WITNESS_KEY_HASH = re.compile(r"^[0-9a-fA-F]{40}$")
+    WITNESS_SCRIPT_HASH = re.compile(r"^[0-9a-fA-F]{64}$")
 
     # standard patterns
     P2PK = [re.compile(r"^push_size_(?:65|33)$"), PUBLIC_KEY, re.compile(r"^checksig$")]
     P2PKH = [re.compile(r"^dup$"), re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), PUBLIC_KEY_HASH, re.compile(r"^equalverify$"), re.compile(r"^checksig$")]
     P2SH = [re.compile(r"^hash160$"), re.compile(r"^push_size_20$"), PUBLIC_KEY_HASH, re.compile(r"^equal$")]
+    P2WPKH = [re.compile(r"^push_size_0$"), re.compile(r"^push_size_20$"), WITNESS_KEY_HASH]
+    P2WSH = [re.compile(r"^push_size_0$"), re.compile(r"^push_size_32$"), WITNESS_SCRIPT_HASH]
 
 class ScriptDecodingException(Exception):
     def __init__(self, message):
         super().__init__(message)
 
 class ScriptLengthShorterThanExpected(ScriptDecodingException):
-    def __init__(self, param_number, opcode, script, decoded_script_so_far):
-        message = f"param number {param_number} is {opcode} but failed to read required data\n{script}\n{decoded_script_so_far}"
+    def __init__(self, num_bytes, hex_string):
+        message = f"failed to read required data\nbytes expected: {num_bytes}\ndata: {hex_string}"
         super().__init__(message)
