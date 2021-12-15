@@ -10,10 +10,8 @@ re-visiting python after some years to explore new features and libraries.
 
 ## todos
 
-- finish script type matching function `determine_script_type`
 - allow spent transactions and new outputs to be built in parts, difference and unioned
   - allows for decoding of new transaction scripts
-- write spends to files by type
 
 consider:
 - count script types during blockchain analysis?

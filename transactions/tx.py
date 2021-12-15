@@ -205,11 +205,17 @@ class TXOutput(Transaction):
         if len(simplified_script) < len(decoded_script):
             return TXOutput.locking_script_type(simplified_script)
 
-        # TODO: other script types
+        # this type falls under the 'nonstandard' category, but is something of a curiosity for me
+        # note that this pattern would technically match segwit, so checking for it must occur after segwit.
+        if len(decoded_script) > 1:
+            if ScriptTypeTemplate.PUSH_SIZE.match(decoded_script[-2]) and decoded_script[-2] != opcode.names[opcode.PUSH_SIZE_0] and \
+                ScriptTypeTemplate.HEX_DATA.match(decoded_script[-1]):
+                return ScriptType.ANYONE_CAN_PAY
+
         return ScriptType.UNKNOWN
 
     def serialize(self):
-        info = [self.hash, str(self.index), str(self.block_height), self.serialized_script, str(self.value)]
+        info = [self.hash, str(self.index), str(self.block_height), str(self.value), self.serialized_script]
         return ",".join(info)
 
     @classmethod
@@ -221,9 +227,9 @@ class TXOutput(Transaction):
         hash = str(info[0])
         index = int(info[1])
         block_height = int(info[2])
-        script = str(info[3])
-        value = float(info[4])
-        return TXOutput(hash, index, block_height, script, value)
+        value = float(info[3])
+        script = str(info[4])
+        return TXOutput(hash, index, block_height, value, script)
 
 class ScriptType(Enum):
     NONE = 0
@@ -235,18 +241,22 @@ class ScriptType(Enum):
     P2WPKH = 6
     P2WSH = 7
     MULTISIG = 8
+    # this is not a real transaction type, but something I'm interested in
+    ANYONE_CAN_PAY = 100
 
 class ScriptTypeTemplate(object):
     """
     note that matching patterns is much easier than validating them in the first place. for example, P2PK template
     below technically will match ["push_size_65", "02____32bytes____"] or vice-versa, which would not be valid Script.
-    however, it should not be necessary to break these into seperate templates because that script would be invalid.
+    however, it should not be necessary to break these into separate templates because that script would be invalid.
     Therefore, we can take some shortcuts when detecting the type of a transaction that has already been mined.
     """
     # building blocks
+    HEX_DATA = re.compile(r"(?<![0-9a-fA-F]{1})(?:[0-9a-fA-F]{2})+(?![0-9a-fA-F]{1})")
     POSITIVE_DIGIT = re.compile(r"push_positive_(\d{1,2})")
     PUBLIC_KEY = re.compile(r"^0(?:4[0-9a-fA-F]{128}$|[23][0-9a-fA-F]{64})$")
     PUBLIC_KEY_HASH = re.compile(r"^[0-9a-fA-F]{40}$")
+    PUSH_SIZE = re.compile(r"^push_size_(\d{1,2})$")
     WITNESS_KEY_HASH = re.compile(r"^[0-9a-fA-F]{40}$")
     WITNESS_SCRIPT_HASH = re.compile(r"^[0-9a-fA-F]{64}$")
 

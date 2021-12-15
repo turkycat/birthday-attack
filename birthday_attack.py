@@ -1,5 +1,5 @@
 import sys, os, glob, logging, time, json
-from transactions.tx import Transaction, TXOutput, ScriptDecodingException
+from transactions.tx import ScriptType, Transaction, TXOutput, ScriptDecodingException
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
 from alive_progress import alive_bar
@@ -9,6 +9,7 @@ from alive_progress import alive_bar
 # -----------------------------------------------------------------
 
 # file and output related constants
+FILE_NAME_ANYONE_CAN_PAY = "anyone_can_pay.txt"
 FILE_NAME_CACHE = "cache.json"
 FILE_NAME_ERROR = "errors.txt"
 FILE_NAME_LOG = "logfile.txt"
@@ -19,6 +20,7 @@ FILE_NAME_UTXO = "utxos.txt"
 DIR_OUTPUT_RELATIVE = "output"
 DIR_OUTPUT_ABSOLUTE = os.path.join(os.getcwd(), DIR_OUTPUT_RELATIVE)
 file_paths = {
+    FILE_NAME_ANYONE_CAN_PAY: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_ANYONE_CAN_PAY),
     FILE_NAME_CACHE: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_CACHE),
     FILE_NAME_ERROR: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_ERROR),
     FILE_NAME_LOG: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_LOG),
@@ -47,7 +49,7 @@ log.setLevel(logging.INFO)
 DEBUGGING = False
 if DEBUGGING:
     log.setLevel(logging.DEBUG)
-    info_handler = logging.FileHandler(file_paths[FILE_NAME_LOG], "w", "utf-8")
+    info_handler = logging.StreamHandler()
     info_handler.setLevel(logging.DEBUG)
     info_handler.setFormatter(file_format)
     log.addHandler(info_handler)
@@ -71,10 +73,10 @@ def decode_transaction_scripts(transactions):
         with alive_bar(len(transactions)) as progress_bar:
             for output in transactions:
                 scripts_file.write(output.__repr__())
-                scripts_file.write(f"\n{output.script}\n")
+                scripts_file.write(f"\n{output.serialized_script}\n")
 
                 try:
-                    decoded_script = Transaction.decode_script(output.script)
+                    decoded_script = Transaction.decode_script(output.serialized_script)
                     scripts_file.write(f"{decoded_script}\n")
                 except ScriptDecodingException as err:
                     log.error(output.__repr__())
@@ -93,7 +95,7 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
             if input.get("coinbase"):
                 break
 
-            spent_output = TXOutput(input["txid"], input["vout"])
+            spent_output = Transaction(input["txid"], input["vout"])
             if spent_output in utxo_set:
                 log.info(f"removing spent output {spent_output}")
                 utxo_set.remove(spent_output)
@@ -102,18 +104,22 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
 
         # add all outputs to utxo set
         for output in transaction["vout"]:
-            script_pub_key = output["scriptPubKey"]
-            new_output = TXOutput(transaction["txid"], output["n"], block_height, script_pub_key["hex"], script_pub_key["value"])
+            new_output = TXOutput(transaction["txid"], output["n"], block_height, output["value"], output["scriptPubKey"]["hex"])
             log.info(f"adding new output with key: {new_output}")
             utxo_set.add(new_output)
 
             try:
-                decoded_script = Transaction.decode_script(new_output.script)
-                script_type = TXOutput.determine_script_type(decoded_script)
-                if script_type == script_type.UNKNOWN:
+                decoded_script = Transaction.decode_script(new_output.serialized_script)
+                script_type = TXOutput.locking_script_type(decoded_script)
+
+                if script_type == ScriptType.UNKNOWN:
                     with open(file_paths[FILE_NAME_UNKNOWN_SCRIPTS], "a", encoding = "utf-8") as unknown_scripts_file:
                         unknown_scripts_file.write(f"{new_output.serialize()}\n")
                         unknown_scripts_file.write(f"{decoded_script}\n\n")
+                if script_type == ScriptType.ANYONE_CAN_PAY:
+                    with open(file_paths[FILE_NAME_ANYONE_CAN_PAY], "a", encoding = "utf-8") as anyone_can_pay_scripts_file:
+                        anyone_can_pay_scripts_file.write(f"{new_output.serialize()}\n")
+                        anyone_can_pay_scripts_file.write(f"{decoded_script}\n\n")
             except ScriptDecodingException as err:
                 log.error(f"ScriptDecodingException occurred at block {block_height}\n{new_output}\n{err}")
                 pass
@@ -219,7 +225,6 @@ if __name__ == "__main__":
     last_save_time = time.time()
     next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
     rpc = RpcController()
-
     
     running = True
     while running:
