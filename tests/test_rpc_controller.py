@@ -22,10 +22,10 @@ class TestRpcController(unittest.TestCase):
         # we can't test for a specific value here, otherwise test will fail if config is changed.
         # instead, validate that a value is set and types are correct
         controller = RpcController()
-        assert type(controller._RpcController__username) is str
-        assert type(controller._RpcController__password) is str
-        assert type(controller._RpcController__port) is int
-        assert type(controller._RpcController__timeout) is int
+        self.assertTrue(type(controller._RpcController__username) is str)
+        self.assertTrue(type(controller._RpcController__password) is str)
+        self.assertTrue(type(controller._RpcController__port) is int)
+        self.assertTrue(type(controller._RpcController__timeout) is int)
 
     def test_config_override_fields(self):
         test_user = "this_is_a_test_username"
@@ -38,35 +38,35 @@ class TestRpcController(unittest.TestCase):
             port = test_port,
             timeout = test_timeout
         )
-        assert controller._RpcController__username == test_user
-        assert controller._RpcController__password == test_pass
-        assert controller._RpcController__port == test_port
-        assert controller._RpcController__timeout == test_timeout
+        self.assertEqual(controller._RpcController__username, test_user)
+        self.assertEqual(controller._RpcController__password, test_pass)
+        self.assertEqual(controller._RpcController__port, test_port)
+        self.assertEqual(controller._RpcController__timeout, test_timeout)
 
     def test_connect_with_default(self):
         controller = RpcController()
         best_block_hash = controller.getbestblockhash()
-        assert type(best_block_hash) is str
-        assert len(best_block_hash) == 64
+        self.assertTrue(type(best_block_hash) is str)
+        self.assertEqual(len(best_block_hash), 64)
 
     def test_block_hash_001(self):
         controller = RpcController()
         block_hash = controller.getblockhash(1)
-        assert block_hash == BLOCK_HASH_000_001
+        self.assertEqual(block_hash, BLOCK_HASH_000_001)
 
     def test_get_block_001(self):
         controller = RpcController()
         block = controller.getblock(BLOCK_HASH_000_001)
-        assert type(block) is dict
-        assert block["hash"] == BLOCK_HASH_000_001
-        assert block["height"] == 1
-        assert type(block["tx"]) is list
-        assert len(block["tx"]) == 1
+        self.assertTrue(type(block) is dict)
+        self.assertEqual(block["hash"], BLOCK_HASH_000_001)
+        self.assertEqual(block["height"], 1)
+        self.assertTrue(type(block["tx"]) is list)
+        self.assertEqual(len(block["tx"]), 1)
         
     def test_transaction_001(self):
         controller = RpcController()
         transaction_data = controller.getrawtransaction(TRANSACTION_HASH_FROM_BLOCK_000_001, True, BLOCK_HASH_000_001)
-        assert len(transaction_data) > 0
+        self.assertTrue(len(transaction_data) > 0)
 
 if __name__ == "__main__":
     unittest.main()
