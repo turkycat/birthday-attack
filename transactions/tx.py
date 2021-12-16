@@ -33,25 +33,29 @@ class TXID(object):
     def __repr__(self):
         return f"Transaction({self.hash}, {self.index})"
 
+SATS_PER_BITCOIN  = 100,000,000
 class TXOutput(TXID):
 
-    def __init__(self, hash, index, block_height, value, serialized_script):
+    def __init__(self, hash, index, block_height, value_in_sats, serialized_script):
         super().__init__(hash, index)
         self.block_height = block_height
-        self.value = value
         self.serialized_script = serialized_script
+
+        if type(value_in_sats) is float:
+            value_in_sats = int(value_in_sats * SATS_PER_BITCOIN)
+        self.value_in_sats = value_in_sats
 
     def __hash__(self):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXOutput object: {self.hash} {self.index}, {self.block_height}, {self.value}, {self.serialized_script}>>"
+        return f"<<TXOutput object: {self.hash} {self.index}, {self.block_height}, {self.value_in_sats}, {self.serialized_script}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.value}, {self.serialized_script})"
+        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.value_in_sats}, {self.serialized_script})"
 
     def serialize(self):
-        info = [self.hash, str(self.index), str(self.block_height), str(self.value), self.serialized_script]
+        info = [self.hash, str(self.index), str(self.block_height), str(self.value_in_sats), self.serialized_script]
         return ",".join(info)
 
     @classmethod
@@ -63,6 +67,6 @@ class TXOutput(TXID):
         hash = str(info[0])
         index = int(info[1])
         block_height = int(info[2])
-        value = float(info[3])
+        value_in_sats = int(info[3])
         script = str(info[4])
-        return TXOutput(hash, index, block_height, value, script)
+        return TXOutput(hash, index, block_height, value_in_sats, script)

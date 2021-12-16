@@ -47,7 +47,7 @@ file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(mess
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-DEBUGGING = True
+DEBUGGING = False
 if DEBUGGING:
     log.setLevel(logging.DEBUG)
     info_handler = logging.StreamHandler()
