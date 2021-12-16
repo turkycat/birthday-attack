@@ -1,20 +1,12 @@
 import unittest
 from context import *
+from common import *
 from transactions.tx import *
 from transactions.script import *
 
-TRANSACTION_01_HASH = "5a189242e85c9670cefac381de8423c11fd9d4b0ebcf86468282e0fc1fe78fb8"
-TRANSACTION_01_INDEX = 0
-TRANSACTION_01_SCRIPT = "2103bddd330f9f666ba93f46e6dd2717aba0878e1ecefbe5860373b2524f064a13f5ac"
-#       varint size (33)-^ ^-compressed public key (03) followed by 32 byte x-coordinate---^|^- checksig (172)
-
-UNCOMPRESSED_PUBLIC_KEY = "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0"
-COMPRESSED_PUBLIC_KEY_01 = "0214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420"
-COMPRESSED_PUBLIC_KEY_02 = "03831cfea00b5cfcd97a12fd14b469d9385140d187d2bd8add9a1044685db9552b"
-
 tx_01 = TXID(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
 
-class TestTXOutputLittleEndianRead(unittest.TestCase):
+class TestScriptLittleEndianRead(unittest.TestCase):
 
     def test_too_short_01(self):
         hex_string = "f"
@@ -120,7 +112,7 @@ class TestTXOutputLittleEndianRead(unittest.TestCase):
         val = decode_hex_bytes_little_endian(4, hex_string)
         assert val == 4294967295
 
-class TextTXOutputDetermineScriptType(unittest.TestCase):
+class TextScriptDetermineTypeNone(unittest.TestCase):
 
     # script is None
     def test_invalid_script_none(self):
@@ -132,9 +124,11 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
         test_script = []
         assert Type.NONE == locking_script_type(test_script)
 
-    # -----------------------------------------------------------------
-    #                             P2PK
-    # -----------------------------------------------------------------
+# -----------------------------------------------------------------
+#                             P2PK
+# -----------------------------------------------------------------
+
+class TextScriptDetermineTypeP2PK(unittest.TestCase):
 
     # valid P2PK w/ uncompressed public key
     def test_valid_p2pk_uncompressed_key(self):
@@ -209,6 +203,8 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     # -----------------------------------------------------------------
     #                             P2PKH
     # -----------------------------------------------------------------
+
+class TextScriptDetermineTypeP2PKH(unittest.TestCase):
     
     # valid P2PKH
     def test_valid_p2pkh(self):
@@ -258,6 +254,8 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     # -----------------------------------------------------------------
     #                             P2SH
     # -----------------------------------------------------------------
+
+class TextScriptDetermineTypeP2SH(unittest.TestCase):
     
     # valid P2SH
     def test_valid_p2sh(self):
@@ -307,6 +305,8 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     # -----------------------------------------------------------------
     #                             NOOP
     # -----------------------------------------------------------------
+
+class TextScriptNoops(unittest.TestCase):
 
     # valid P2PK w/ NOOPs - trying for all codes and all positions
     def test_valid_p2pk_noop_01(self):
@@ -395,6 +395,8 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     #                             SEGWIT
     # -----------------------------------------------------------------
 
+class TextScriptDetermineTypeSegwit(unittest.TestCase):
+
     def test_valid_p2wpkh(self):
         test_script = ["push_size_0", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a"]
         assert Type.P2WPKH == locking_script_type(test_script)
@@ -414,6 +416,8 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     # -----------------------------------------------------------------
     #                          ANYONE CAN SPEND
     # -----------------------------------------------------------------
+
+class TextScriptDetermineTypeAnyoneCanSpend(unittest.TestCase):
         
     # script data only
     def test_valid_anyone_can_spend(self):
@@ -423,6 +427,8 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     # -----------------------------------------------------------------
     #                             MULTISIG
     # -----------------------------------------------------------------
+
+class TextScriptDetermineTypeMultisig(unittest.TestCase):
 
     # script is None
     def test_multisig_invalid_script_none(self):
