@@ -11,7 +11,7 @@ UNCOMPRESSED_PUBLIC_KEY = "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d006
 COMPRESSED_PUBLIC_KEY_01 = "0214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420"
 COMPRESSED_PUBLIC_KEY_02 = "03831cfea00b5cfcd97a12fd14b469d9385140d187d2bd8add9a1044685db9552b"
 
-tx_01 = Transaction(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
+tx_01 = TXID(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
 
 class TestTXOutputLittleEndianRead(unittest.TestCase):
 
@@ -199,13 +199,8 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
     def test_invalid_p2pk_compressed_key_invalid_chars_02(self):
         test_script = ["push_size_33", "0214f296079b181ab76cd817f8ba5b#1d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
         assert ScriptType.UNKNOWN == TXOutput.locking_script_type(test_script)
-        
-    # script is empty list
-    def test_invalid_script_list_too_short(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0"]
-        assert ScriptType.UNKNOWN == TXOutput.locking_script_type(test_script)
 
-    # script is empty list
+    # too many checksigs
     def test_invalid_script_list_too_long(self):
         test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig", "checksig"]
         assert ScriptType.UNKNOWN == TXOutput.locking_script_type(test_script)
@@ -405,7 +400,7 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
 
     def test_valid_p2wpkh_decode(self):
         test_script = "001499fc7624fa2943151239b814e77407f6b9cf1099"
-        assert ScriptType.P2WPKH == TXOutput.locking_script_type(Transaction.decode_script(test_script))
+        assert ScriptType.P2WPKH == TXOutput.locking_script_type(TXID.decode_script(test_script))
 
     def test_valid_p2wsh(self):
         test_script = ["push_size_0", "push_size_32", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160ae9c3dd0c07aac76179ebc76a"]
@@ -413,7 +408,16 @@ class TextTXOutputDetermineScriptType(unittest.TestCase):
 
     def test_valid_p2wsh_decode(self):
         test_script = "002099fc7624fa2943151239b814e77407f6b9cf1099e9c3dd0c07aac76179ebc76a"
-        assert ScriptType.P2WSH == TXOutput.locking_script_type(Transaction.decode_script(test_script))
+        assert ScriptType.P2WSH == TXOutput.locking_script_type(TXID.decode_script(test_script))
+
+    # -----------------------------------------------------------------
+    #                          ANYONE CAN SPEND
+    # -----------------------------------------------------------------
+        
+    # script data only
+    def test_valid_anyone_can_spend(self):
+        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0"]
+        assert ScriptType.ANYONE_CAN_SPEND == TXOutput.locking_script_type(test_script)
 
     # -----------------------------------------------------------------
     #                             MULTISIG

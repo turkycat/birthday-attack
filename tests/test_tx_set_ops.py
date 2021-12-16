@@ -10,7 +10,7 @@ TRANSACTION_01_VALUE = 12.40000000
 TRANSACTION_01_SCRIPT = "2103bddd330f9f666ba93f46e6dd2717aba0878e1ecefbe5860373b2524f064a13f5ac"
 #       varint size (33)-^ ^-compressed public key (03) followed by 32 byte x-coordinate---^|^- checksig (172)
 
-tx_01 = Transaction(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
+tx_01 = TXID(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
 txoutput_01 = TXOutput(TRANSACTION_01_HASH, TRANSACTION_01_INDEX, \
     TRANSACTION_01_BLOCK_HEIGHT, TRANSACTION_01_VALUE, TRANSACTION_01_SCRIPT)
 
@@ -22,7 +22,7 @@ TRANSACTION_02_SCRIPT = "2103bddd330f9f666ba93f46e6dd2717aba0878e1ecefbe5860373b
 TRANSACTION_02_DECODED_SCRIPT = ["push_data_33", "03bddd330f9f666ba93f46e6dd2717aba0878e1ecefbe5860373b2524f064a13f5", "checksig"]
 # transaction 01 block hash 0000000000000a0276cda9be68104843ef907113942fda4d2162355513396291
 
-tx_02 = Transaction(TRANSACTION_02_HASH, TRANSACTION_02_INDEX)
+tx_02 = TXID(TRANSACTION_02_HASH, TRANSACTION_02_INDEX)
 txoutput_02 = TXOutput(TRANSACTION_02_HASH, TRANSACTION_02_INDEX, \
     TRANSACTION_02_BLOCK_HEIGHT, TRANSACTION_02_VALUE, TRANSACTION_02_SCRIPT)
 
@@ -48,7 +48,7 @@ class TransactionSetOps(unittest.TestCase):
         utxo = set()
         utxo.add(txoutput_01)
         self.assertTrue(utxo.__sizeof__, 1)
-        tx_01_other = Transaction(tx_01.hash, tx_01.index + 1)
+        tx_01_other = TXID(tx_01.hash, tx_01.index + 1)
         with self.assertRaises(KeyError):
             utxo.remove(tx_01_other)
         self.assertTrue(utxo.__sizeof__, 1)
