@@ -1,5 +1,6 @@
 import sys, os, glob, logging, time, json
-from transactions.tx import ScriptType, Transaction, TXOutput, ScriptDecodingException
+from transactions.tx import TXID, TXOutput
+from transactions import script
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
 from alive_progress import alive_bar
@@ -46,7 +47,7 @@ file_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(mess
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-DEBUGGING = False
+DEBUGGING = True
 if DEBUGGING:
     log.setLevel(logging.DEBUG)
     info_handler = logging.StreamHandler()
@@ -76,9 +77,9 @@ def decode_transaction_scripts(transactions):
                 scripts_file.write(f"\n{output.serialized_script}\n")
 
                 try:
-                    decoded_script = Transaction.decode_script(output.serialized_script)
+                    decoded_script = script.decode_script(output.serialized_script)
                     scripts_file.write(f"{decoded_script}\n")
-                except ScriptDecodingException as err:
+                except script.ScriptDecodingException as err:
                     log.error(output.__repr__())
                     log.error(err)
 
@@ -95,7 +96,7 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
             if input.get("coinbase"):
                 break
 
-            spent_output = Transaction(input["txid"], input["vout"])
+            spent_output = TXID(input["txid"], input["vout"])
             if spent_output in utxo_set:
                 log.info(f"removing spent output {spent_output}")
                 utxo_set.remove(spent_output)
@@ -105,22 +106,22 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
         # add all outputs to utxo set
         for output in transaction["vout"]:
             new_output = TXOutput(transaction["txid"], output["n"], block_height, output["value"], output["scriptPubKey"]["hex"])
-            log.info(f"adding new output with key: {new_output}")
+            log.info(f"adding new output with id: {new_output}")
             utxo_set.add(new_output)
 
             try:
-                decoded_script = Transaction.decode_script(new_output.serialized_script)
-                script_type = TXOutput.locking_script_type(decoded_script)
+                decoded_script = script.decode_script(new_output.serialized_script)
+                script_type = script.locking_script_type(decoded_script)
 
-                if script_type == ScriptType.UNKNOWN:
+                if script_type == script.Type.UNKNOWN:
                     with open(file_paths[FILE_NAME_UNKNOWN_SCRIPTS], "a", encoding = "utf-8") as unknown_scripts_file:
                         unknown_scripts_file.write(f"{new_output.serialize()}\n")
                         unknown_scripts_file.write(f"{decoded_script}\n\n")
-                if script_type == ScriptType.ANYONE_CAN_PAY:
+                if script_type == script.Type.ANYONE_CAN_SPEND:
                     with open(file_paths[FILE_NAME_ANYONE_CAN_PAY], "a", encoding = "utf-8") as anyone_can_pay_scripts_file:
                         anyone_can_pay_scripts_file.write(f"{new_output.serialize()}\n")
                         anyone_can_pay_scripts_file.write(f"{decoded_script}\n\n")
-            except ScriptDecodingException as err:
+            except script.ScriptDecodingException as err:
                 log.error(f"ScriptDecodingException occurred at block {block_height}\n{new_output}\n{err}")
                 pass
     return True
