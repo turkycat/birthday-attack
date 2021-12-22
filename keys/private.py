@@ -10,3 +10,6 @@ class PrivateKey(object):
 
     def __str__(self):
         return f"0x{self.value:0{64}x}"
+
+    def next(self):
+        self.value = (self.value + 1) % NUM_ELLIPTIC_CURVE_POINTS

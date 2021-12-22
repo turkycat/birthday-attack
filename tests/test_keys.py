@@ -2,7 +2,7 @@ import unittest
 from context import *
 from common import *
 from keys import *
-from keys.private import PrivateKey
+from keys.private import NUM_ELLIPTIC_CURVE_POINTS, PrivateKey
 
 # -----------------------------------------------------------------
 #                            PRIVATE KEYS
@@ -99,3 +99,25 @@ class TestPrivateKey(unittest.TestCase):
         private_key2 = PrivateKey(private_key.__str__())
         self.assertEqual("0x000000000000000000000000000000000000000000000000f0f0f0f0f0f0f0f0", private_key2.__str__())
         self.assertEqual(private_key.value, private_key2.value)
+
+    def test_next_01(self):
+        private_key = PrivateKey("0x0000000000000000000000000000000000000000000000000000000000000000")
+        self.assertEqual(0, private_key.value)
+        private_key.next()
+        self.assertEqual(1, private_key.value)
+
+    def test_next_02(self):
+        private_key = PrivateKey("0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140")
+        self.assertEqual(NUM_ELLIPTIC_CURVE_POINTS - 1, private_key.value)
+        private_key.next()
+        self.assertEqual(0, private_key.value)
+
+    def test_next_03(self):
+        private_key = PrivateKey("0xff")
+        self.assertEqual(255, private_key.value)
+        private_key.next()
+        self.assertEqual(256, private_key.value)
+        private_key.next()
+        self.assertEqual(257, private_key.value)
+        private_key.next()
+        self.assertEqual(258, private_key.value)
