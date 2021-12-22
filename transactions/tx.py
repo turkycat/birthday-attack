@@ -70,3 +70,31 @@ class TXOutput(TXID):
         value_in_sats = int(info[3])
         script = str(info[4])
         return TXOutput(hash, index, block_height, value_in_sats, script)
+
+class TXInput(TXID):
+
+    def __init__(self, hash, index, scriptSig = None, witness = None):
+        super().__init__(hash, index)
+        self.scriptSig = scriptSig
+
+        # list, witness[0] = sig, witness[1] = compressed pubkey
+        self.witness = witness
+
+    def __hash__(self):
+        return super().__hash__()
+
+    def __str__(self):
+        return f"<<TXInput object: {self.hash} {self.index}, {self.scriptSig}, {self.witness}>>"
+
+    def __repr__(self):
+        return f"TXInput({self.hash}, {self.index}, {self.scriptSig}, {self.witness})"
+
+    @classmethod
+    def from_dictionary(cls, input_data):
+        hash = input_data["txid"]
+        index = input_data["vout"]
+
+        if input_data.get("txinwitness"):
+            return TXInput(hash, index, witness=input_data["txinwitness"])
+
+        return TXInput(hash, index, input["scriptSig"])

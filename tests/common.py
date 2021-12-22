@@ -117,3 +117,54 @@ class Block300kData(object):
         "time": 1399703554,
         "blocktime": 1399703554
     }
+
+"""
+01000000000101cff8c557b3e4e773e216c63d20991b639a814bbd9e8168e47f7fe95373f8cd950100000000ffffffff020000000000000000536a4c50000898970002382324c19216437fdb3bdb2d85e7044d518dbd36d3674acc4c49da5742d5a084caddb468ec6057f24e14e5d6f5af5daa52dc07015365918bdc18d28d32ad8cb5bd6d89823a43e7397651bd6b030000000000160014fbf683cfe18dfeb1c07aa7dad0fd621543cf913302473044022037f4a75c67aa66ba5b2dca566080b54cb3572884177fbbd76aaff358134e0fd0022030e4c0d6f6e7036b114812dfe9835c93e2b1b001b916506978b0ec962fd406d5012102336efc1fee56253fe9bed2d90e6bfe19b9b68c0be301d33bc5993771af0e3bf800000000
+
+01 00 00 00 
+00 = no inputs (marker)
+01 = segwit (marker)
+------
+01 = input count
+cff8c557 b3e4e773 e216c63d 20991b63 9a814bbd 9e8168e4 7f7fe953 73f8cd95 (reverse this), previous hash
+01000000 (reverse this), index = 01 
+00 = script size
+[]
+ffffffff = sequence
+02 = output count
+------
+00000000 00000000 (reverse this), value = 0
+53 (script size) = 83
+[
+    6a4c5000 08989700 02382324 c1921643 7fdb3bdb 2d85e704 4d518dbd 36d3674a
+    cc4c49da 5742d5a0 84caddb4 68ec6057 f24e14e5 d6f5af5d aa52dc07 01536591
+    8bdc18d2 8d32ad8c b5bd6d89 823a43e7 397651
+]
+bd6b0300 00000000 (reverse this), value = 00000000 00036bbd = 224,189
+16 (script size) = 22
+[
+    00 14 fbf683cf e18dfeb1 c07aa7da d0fd6215 43cf9133
+]
+--
+from the code, it will read a number of witnesses equal to the input count
+from bip-144,
+It is encoded as a var_int item count followed by each item encoded as a var_int length followed by a string of bytes. 
+The number of script witnesses is not explicitly encoded as it is implied by txin_count.
+Empty script witnesses are encoded as a zero byte.
+The order of the script witnesses follows the same order as the associated txins.
+--
+02 = item count
+{
+    47 item size = 71
+    [
+        30440220 37f4a75c 67aa66ba 5b2dca56 6080b54c b3572884 177fbbd7 6aaff358
+        134e0fd0 022030e4 c0d6f6e7 036b1148 12dfe983 5c93e2b1 b001b916 506978b0
+        ec962fd4 06d501
+    ]
+    21 item size = 33
+    [
+        02336efc 1fee5625 3fe9bed2 d90e6bfe 19b9b68c 0be301d3 3bc59937 71af0e3b f8
+    ]
+}
+00000000 (lock time)
+"""

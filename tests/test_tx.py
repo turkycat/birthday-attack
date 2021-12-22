@@ -38,17 +38,34 @@ class TXEqualsByIDOnly(unittest.TestCase):
     def test_output_hash_equals_txid(self):
         self.assertEqual(txid_01.hash, txoutput_01.hash)
         self.assertEqual(txid_01.index, txoutput_01.index)
-        self.assertEqual(txid_01.hash, txoutput_01.hash)
         self.assertEqual(txid_01.__hash__(), txoutput_01.__hash__())
 
     def test_output_hash_not_equals_txid(self):
         self.assertNotEqual(txid_01.__hash__(), txoutput_02.__hash__())
 
-    def test_output_hash_equals_txid(self):
-        self.assertEqual(txid_01.hash, txoutput_01.hash)
-        self.assertEqual(txid_01.index, txoutput_01.index)
-        self.assertEqual(txid_01.hash, txoutput_01.hash)
-        self.assertEqual(txid_01.__hash__(), txoutput_01.__hash__())
+    def test_input_hash_equals_txid(self):
+        txinput = TXInput(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
+        self.assertEqual(txid_01.hash, txinput.hash)
+        self.assertEqual(txid_01.index, txinput.index)
+        self.assertEqual(txid_01.__hash__(), txinput.__hash__())
+
+    def test_input_hash_equals_txid_02(self):
+        txinput = TXInput(TRANSACTION_01_HASH, TRANSACTION_01_INDEX, "CAFEBABE")
+        self.assertEqual(txid_01.hash, txinput.hash)
+        self.assertEqual(txid_01.index, txinput.index)
+        self.assertEqual(txid_01.__hash__(), txinput.__hash__())
+
+    def test_input_hash_equals_txid_03(self):
+        txinput = TXInput(TRANSACTION_01_HASH, TRANSACTION_01_INDEX, "CAFEBABE", "CAFEBABE")
+        self.assertEqual(txid_01.hash, txinput.hash)
+        self.assertEqual(txid_01.index, txinput.index)
+        self.assertEqual(txid_01.__hash__(), txinput.__hash__())
+
+    def test_input_hash_equals_output(self):
+        txinput = TXInput(TRANSACTION_01_HASH, TRANSACTION_01_INDEX, "DEADBEEF", "DEADBEEF")
+        self.assertEqual(txoutput_01.hash, txinput.hash)
+        self.assertEqual(txoutput_01.index, txinput.index)
+        self.assertEqual(txoutput_01.__hash__(), txinput.__hash__())
 
 class TXSetOps(unittest.TestCase):
 
@@ -67,6 +84,14 @@ class TXSetOps(unittest.TestCase):
         with self.assertRaises(KeyError):
             utxo.remove(tx_01_other)
         self.assertTrue(utxo.__sizeof__, 1)
+       
+    def test_output_removed_by_input(self):
+        txinput = TXInput(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
+        utxo = set()
+        utxo.add(txoutput_01)
+        self.assertTrue(utxo.__sizeof__, 1)
+        utxo.remove(txinput)
+        self.assertTrue(utxo.__sizeof__, 0)
 
 if __name__ == "__main__":
     unittest.main()

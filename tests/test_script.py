@@ -4,7 +4,7 @@ from common import *
 from transactions.tx import *
 from transactions.script import *
 
-tx_01 = TXID(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
+txid_01 = TXID(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
 
 class TestScriptLittleEndianRead(unittest.TestCase):
 

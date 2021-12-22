@@ -1,5 +1,5 @@
 import sys, os, glob, logging, time, json
-from transactions.tx import TXID, TXOutput
+from transactions.tx import TXOutput, TXInput
 from transactions import script
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
@@ -96,7 +96,7 @@ def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
             if input.get("coinbase"):
                 break
 
-            spent_output = TXID(input["txid"], input["vout"])
+            spent_output = TXInput.from_dictionary(input)
             if spent_output in utxo_set:
                 log.info(f"removing spent output {spent_output}")
                 utxo_set.remove(spent_output)

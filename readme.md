@@ -10,11 +10,8 @@ re-visiting python after some years to explore new features and libraries.
 
 ## todos
 
-- allow spent transactions and new outputs to be built in parts, difference and unioned
+- allow spent transactions and new outputs to be built in parts, difference and unioned (in progress)
   - allows for decoding of new transaction scripts
-
-consider:
-- count script types during blockchain analysis?
 - replace files by database
   - not particularly useful for this program, but the blockchain data would be valuable for others.
 
