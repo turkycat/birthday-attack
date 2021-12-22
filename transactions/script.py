@@ -56,7 +56,7 @@ def decode_script(serialized_script):
         data = serialized_script[script_position : script_position + characters_expected]
         if len(data) < characters_expected:
             raise ScriptLengthShorterThanExpected(characters_expected, serialized_script[script_position:])
-
+        
         script_position = script_position + characters_expected
         decoded_script.append(data)
 

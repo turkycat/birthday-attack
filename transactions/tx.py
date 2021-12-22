@@ -73,9 +73,9 @@ class TXOutput(TXID):
 
 class TXInput(TXID):
 
-    def __init__(self, hash, index, scriptSig = None, witness = None):
+    def __init__(self, hash, index, serialized_scriptSig = None, witness = None):
         super().__init__(hash, index)
-        self.scriptSig = scriptSig
+        self.serialized_scriptSig = serialized_scriptSig
 
         # list, witness[0] = sig, witness[1] = compressed pubkey
         self.witness = witness
@@ -84,10 +84,10 @@ class TXInput(TXID):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXInput object: {self.hash} {self.index}, {self.scriptSig}, {self.witness}>>"
+        return f"<<TXInput object: {self.hash} {self.index}, {self.serialized_scriptSig}, {self.witness}>>"
 
     def __repr__(self):
-        return f"TXInput({self.hash}, {self.index}, {self.scriptSig}, {self.witness})"
+        return f"TXInput({self.hash}, {self.index}, {self.serialized_scriptSig}, {self.witness})"
 
     @classmethod
     def from_dictionary(cls, input_data):
@@ -95,6 +95,6 @@ class TXInput(TXID):
         index = input_data["vout"]
 
         if input_data.get("txinwitness"):
-            return TXInput(hash, index, witness=input_data["txinwitness"])
+            return TXInput(hash, index, witness = input_data["txinwitness"])
 
-        return TXInput(hash, index, input["scriptSig"])
+        return TXInput(hash, index, input["scriptSig"]["hex"])
