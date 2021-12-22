@@ -7,7 +7,7 @@ NUM_CHARACTERS_PER_BYTE = 2
 def decode_hex_bytes_little_endian(num_bytes, hex_string):
     characters_expected = num_bytes * NUM_CHARACTERS_PER_BYTE
     if len(hex_string) < characters_expected:
-        raise ScriptLengthShorterThanExpected(num_bytes, hex_string)
+        raise ScriptLengthShorterThanExpected(characters_expected, hex_string)
 
     total = 0
     byte = 0
@@ -18,8 +18,11 @@ def decode_hex_bytes_little_endian(num_bytes, hex_string):
     return total
 
 def decode_script(serialized_script):
-    if serialized_script is None:
+    if serialized_script is None or serialized_script == "":
         return None
+
+    if len(serialized_script) % 2 == 1:
+        raise ScriptDecodingException("serialized script must not be odd length")
 
     decoded_script = []
     script_position = 0
@@ -46,12 +49,15 @@ def decode_script(serialized_script):
             else: #opcode.PUSH_FOUR_SIZE
                 bytes_to_decode = 4
 
-            data_size = self.decode_hex_bytes_little_endian(bytes_to_decode, serialized_script[script_position:])
+            data_size = decode_hex_bytes_little_endian(bytes_to_decode, serialized_script[script_position:])
             script_position = script_position + (NUM_CHARACTERS_PER_BYTE * bytes_to_decode)
 
-        number_of_characters_to_read = NUM_CHARACTERS_PER_BYTE * data_size
-        data = serialized_script[script_position : script_position + number_of_characters_to_read]
-        script_position = script_position + number_of_characters_to_read
+        characters_expected = NUM_CHARACTERS_PER_BYTE * data_size
+        data = serialized_script[script_position : script_position + characters_expected]
+        if len(data) < characters_expected:
+            raise ScriptLengthShorterThanExpected(characters_expected, serialized_script[script_position:])
+
+        script_position = script_position + characters_expected
         decoded_script.append(data)
 
     return decoded_script
@@ -201,6 +207,6 @@ class ScriptDecodingException(Exception):
         super().__init__(message)
 
 class ScriptLengthShorterThanExpected(ScriptDecodingException):
-    def __init__(self, num_bytes, hex_string):
-        message = f"failed to read required data\nbytes expected: {num_bytes}\ndata: {hex_string}"
+    def __init__(self, num_chars, hex_string):
+        message = f"failed to read required data\nhex chars expected: {num_chars}\ndata: {hex_string}"
         super().__init__(message)

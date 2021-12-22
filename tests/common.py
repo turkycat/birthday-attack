@@ -3,6 +3,7 @@ from transactions import tx
 UNCOMPRESSED_PUBLIC_KEY = "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0"
 COMPRESSED_PUBLIC_KEY_01 = "0214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420"
 COMPRESSED_PUBLIC_KEY_02 = "03831cfea00b5cfcd97a12fd14b469d9385140d187d2bd8add9a1044685db9552b"
+PUBKEYHASH = "61cf5af7bb84348df3fd695672e53c7d5b3f3db9"
 
 TRANSACTION_01_HASH = "5a189242e85c9670cefac381de8423c11fd9d4b0ebcf86468282e0fc1fe78fb8"
 TRANSACTION_01_INDEX = 0
@@ -167,4 +168,8 @@ The order of the script witnesses follows the same order as the associated txins
     ]
 }
 00000000 (lock time)
+
+
+how does an old node see this as a valid transaction? the input count being zero (1st marker) surely means the data following would
+either be ignored or misinterpreted.
 """

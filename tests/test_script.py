@@ -4,8 +4,6 @@ from common import *
 from transactions.tx import *
 from transactions.script import *
 
-txid_01 = TXID(TRANSACTION_01_HASH, TRANSACTION_01_INDEX)
-
 class TestScriptLittleEndianRead(unittest.TestCase):
 
     def test_too_short_01(self):
@@ -112,560 +110,190 @@ class TestScriptLittleEndianRead(unittest.TestCase):
         val = decode_hex_bytes_little_endian(4, hex_string)
         self.assertEqual(val, 4294967295)
 
-class TextScriptDetermineTypeNone(unittest.TestCase):
-
-    # script is None
-    def test_invalid_script_none(self):
-        test_script = None
-        self.assertEqual(Type.NONE, locking_script_type(test_script))
-
-    # script is empty list
-    def test_invalid_script_empty_list(self):
-        test_script = []
-        self.assertEqual(Type.NONE, locking_script_type(test_script))
+class TestScriptDecode(unittest.TestCase):
+    
 
 # -----------------------------------------------------------------
-#                             P2PK
+#                 ERRORS AND UNEXPECTED VALUES
 # -----------------------------------------------------------------
 
-class TextScriptDetermineTypeP2PK(unittest.TestCase):
-
-    # valid P2PK w/ uncompressed public key
-    def test_valid_p2pk_uncompressed_key(self):
-        test_script = ["push_size_65", UNCOMPRESSED_PUBLIC_KEY, "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-
-    # valid P2PK w/ compressed public key 1
-    def test_valid_p2pk_compressed_key_01(self):
-        test_script = ["push_size_33", COMPRESSED_PUBLIC_KEY_01, "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-
-    # valid P2PK w/ compressed public key 2
-    def test_valid_p2pk_compressed_key_02(self):
-        test_script = ["push_size_33", COMPRESSED_PUBLIC_KEY_02, "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-
-    # invalid P2PK w/ uncompressed public key (too long)
-    def test_invalid_p2pk_uncompressed_key_too_long(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b123d5043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK w/ uncompressed public key (too short)
-    def test_invalid_p2pk_uncompressed_key_too_short(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a116575b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK w/ compressed public key (too long)
-    def test_invalid_p2pk_compressed_key_too_long(self):
-        test_script = ["push_size_33", "0214f296079b181abd76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK w/ compressed public key (too short)
-    def test_invalid_p2pk_compressed_key_too_short(self):
-        test_script = ["push_size_33", "03831cfea00b5cfcd9a12fd14b469d9385140d187d2bd8add9a1044685db9552b", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK with incorrect first opcode
-    def test_invalid_p2pk_compressed_key_incorect_opcode_01(self):
-        test_script = ["push_size_63", COMPRESSED_PUBLIC_KEY_01, "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK with incorrect last opcode
-    def test_invalid_p2pk_compressed_key_incorect_opcode_02(self):
-        test_script = ["push_size_33", COMPRESSED_PUBLIC_KEY_01, "checksigverify"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK with missing key
-    def test_invalid_p2pk_compressed_key_missing(self):
-        test_script = ["push_size_33", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK with empty key
-    def test_invalid_p2pk_compressed_key_empty(self):
-        test_script = ["push_size_33", "", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK with invalid chars in key 1
-    def test_invalid_p2pk_compressed_key_invalid_chars_01(self):
-        test_script = ["push_size_33", "0214f296079b181ab76cd817f8hello1d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PK with invalid chars in key 2
-    def test_invalid_p2pk_compressed_key_invalid_chars_02(self):
-        test_script = ["push_size_33", "0214f296079b181ab76cd817f8ba5b#1d9ba5b00ca46f16eadfab8e0bb3a2b0420", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # too many checksigs
-    def test_invalid_script_list_too_long(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # -----------------------------------------------------------------
-    #                             P2PKH
-    # -----------------------------------------------------------------
-
-class TextScriptDetermineTypeP2PKH(unittest.TestCase):
-    
-    # valid P2PKH
-    def test_valid_p2pkh(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.P2PKH, locking_script_type(test_script))
-        
-    # invalid P2PKH with missing hash
-    def test_invalid_p2pkh_missing_hash(self):
-        test_script = ["dup", "hash160", "push_size_20", "equalverify", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PKH with empty hash
-    def test_invalid_p2pkh_empty_hash(self):
-        test_script = ["dup", "hash160", "push_size_20", "", "equalverify", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2PKH with key too short
-    def test_invalid_p2pkh_key_too_short(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9e60fb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2PKH with key too long
-    def test_invalid_p2pkh_key_too_long(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9bed60fb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PKH with invalid chars in key 1
-    def test_invalid_p2pkh_invalid_chars_01(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871fhellofb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2PKH with invalid chars in key 2
-    def test_invalid_p2pkh_invalid_chars_02(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c8#1f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2PKH with missing checksig
-    def test_invalid_p2pkh_list_too_short(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2PKH with double checksig
-    def test_invalid_p2pkh_list_too_long(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig", "checksig"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # -----------------------------------------------------------------
-    #                             P2SH
-    # -----------------------------------------------------------------
-
-class TextScriptDetermineTypeP2SH(unittest.TestCase):
-    
-    # valid P2SH
-    def test_valid_p2sh(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.P2SH, locking_script_type(test_script))
-        
-    # invalid P2SH with missing hash
-    def test_invalid_p2sh_missing_hash(self):
-        test_script = ["hash160", "push_size_20", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2SH with empty hash
-    def test_invalid_p2sh_empty_hash(self):
-        test_script = ["hash160", "push_size_20", "", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2SH with key too short
-    def test_invalid_p2sh_key_too_short(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07ac76179ebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2SH with key too long
-    def test_invalid_p2sh_key_too_long(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07adac76179ebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2SH with invalid chars in key 1
-    def test_invalid_p2sh_invalid_chars_01(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07aachelloebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # invalid P2SH with invalid chars in key 2
-    def test_invalid_p2sh_invalid_chars_02(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07aac761$#ebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2SH with missing checksig
-    def test_invalid_p2sh_list_too_short(self):
-        test_script = ["hash160", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-    
-    # invalid P2SH with double checksig
-    def test_invalid_p2sh_list_too_long(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal", "equal"]
-        self.assertEqual(Type.UNKNOWN, locking_script_type(test_script))
-
-    # -----------------------------------------------------------------
-    #                             NOOP
-    # -----------------------------------------------------------------
-
-class TextScriptNoops(unittest.TestCase):
-
-    # valid P2PK w/ NOOPs - trying for all codes and all positions
-    def test_valid_p2pk_noop_01(self):
-        test_script = ["nop", "push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_03(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_04(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "checksig", "nop"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_05(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop4", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_06(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop5", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_07(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop6", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_08(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop7", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_09(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop8", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_10(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop9", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-        
-    def test_valid_p2pk_noop_11(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0", "nop10", "checksig"]
-        self.assertEqual(Type.P2PK, locking_script_type(test_script))
-    
-    # valid P2PKHs with noops
-    def test_valid_p2pkh_with_noop_01(self):
-        test_script = ["nop", "dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.P2PKH, locking_script_type(test_script))
-    
-    def test_valid_p2pkh_with_noop_02(self):
-        test_script = ["dup", "nop", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.P2PKH, locking_script_type(test_script))
-    
-    def test_valid_p2pkh_with_noop_03(self):
-        test_script = ["dup", "hash160", "nop", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig"]
-        self.assertEqual(Type.P2PKH, locking_script_type(test_script))
-    
-    def test_valid_p2pkh_with_noop_05(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "nop", "equalverify", "checksig"]
-        self.assertEqual(Type.P2PKH, locking_script_type(test_script))
-    
-    def test_valid_p2pkh_with_noop_06(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "nop", "checksig"]
-        self.assertEqual(Type.P2PKH, locking_script_type(test_script))
-    
-    def test_valid_p2pkh_with_noop_07(self):
-        test_script = ["dup", "hash160", "push_size_20", "4ea2cc288c1c871f9be60fb600c294b75fb83b40", "equalverify", "checksig", "nop"]
-        self.assertEqual(Type.P2PKH, locking_script_type(test_script))
-
-    # valid P2SH with noops
-    def test_valid_p2sh_with_noop_01(self):
-        test_script = ["nop", "hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.P2SH, locking_script_type(test_script))
-
-    def test_valid_p2sh_with_noop_02(self):
-        test_script = ["hash160", "nop", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal"]
-        self.assertEqual(Type.P2SH, locking_script_type(test_script))
-
-    def test_valid_p2sh_with_noop_04(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "nop", "equal"]
-        self.assertEqual(Type.P2SH, locking_script_type(test_script))
-
-    def test_valid_p2sh_with_noop_05(self):
-        test_script = ["hash160", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a", "equal", "nop"]
-        self.assertEqual(Type.P2SH, locking_script_type(test_script))
-
-    # -----------------------------------------------------------------
-    #                             SEGWIT
-    # -----------------------------------------------------------------
-
-class TextScriptDetermineTypeSegwit(unittest.TestCase):
-
-    def test_valid_p2wpkh(self):
-        test_script = ["push_size_0", "push_size_20", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160a"]
-        self.assertEqual(Type.P2WPKH, locking_script_type(test_script))
-
-    def test_valid_p2wpkh_decode(self):
-        test_script = "001499fc7624fa2943151239b814e77407f6b9cf1099"
-        self.assertEqual(Type.P2WPKH, locking_script_type(decode_script(test_script)))
-
-    def test_valid_p2wsh(self):
-        test_script = ["push_size_0", "push_size_32", "e9c3dd0c07aac76179ebc76a6c78d4d67c6c160ae9c3dd0c07aac76179ebc76a"]
-        self.assertEqual(Type.P2WSH, locking_script_type(test_script))
-
-    def test_valid_p2wsh_decode(self):
-        test_script = "002099fc7624fa2943151239b814e77407f6b9cf1099e9c3dd0c07aac76179ebc76a"
-        self.assertEqual(Type.P2WSH, locking_script_type(decode_script(test_script)))
-
-    # -----------------------------------------------------------------
-    #                          ANYONE CAN SPEND
-    # -----------------------------------------------------------------
-
-class TextScriptDetermineTypeAnyoneCanSpend(unittest.TestCase):
-        
-    # script data only
-    def test_valid_anyone_can_spend(self):
-        test_script = ["push_size_65", "04aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0"]
-        self.assertEqual(Type.ANYONE_CAN_SPEND, locking_script_type(test_script))
-
-    # -----------------------------------------------------------------
-    #                             MULTISIG
-    # -----------------------------------------------------------------
-
-class TextScriptDetermineTypeMultisig(unittest.TestCase):
-
     # script is None
-    def test_multisig_invalid_script_none(self):
-        test_script = None
-        self.assertEqual(Type.NONE, locking_script_multisig_type(test_script))
+    def test_script_none(self):
+        decoded_script = decode_script(None)
+        self.assertIsNone(decoded_script)
 
-    # script is empty list
-    def test_multisig_invalid_script_empty_list(self):
-        test_script = []
-        self.assertEqual(Type.NONE, locking_script_multisig_type(test_script))
+    # script is empty
+    def test_script_empty(self):
+        serialized_script = ""
+        decoded_script = decode_script(serialized_script)
+        self.assertIsNone(decoded_script)
 
-    def test_multisig_01_of_01(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_1", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.MULTISIG)
-        self.assertEqual(M, 1)
-        self.assertEqual(N, 1)
+    # script is odd length
+    def test_script_odd_length(self):
+        serialized_script = "764"
+        with self.assertRaises(ScriptDecodingException):
+            decoded_script = decode_script(serialized_script)
 
-    def test_multisig_01_of_02(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_2", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.MULTISIG)
-        self.assertEqual(M, 1)
-        self.assertEqual(N, 2)
+    # script is shorter than expected with data
+    def test_script_shorter_than_expected_01(self):
+        # should be 1 byte to follow
+        serialized_script = "01"
+        with self.assertRaises(ScriptLengthShorterThanExpected):
+            decoded_script = decode_script(serialized_script)
 
-    def test_multisig_01_of_03(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_3", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.MULTISIG)
-        self.assertEqual(M, 1)
-        self.assertEqual(N, 3)
+    # script is shorter than expected with data
+    def test_script_shorter_than_expected_02(self):
+        # should be 1 byte to follow, but only 1 char (doesn't even read the data byte- fails because odd)
+        serialized_script = "01f"
+        with self.assertRaises(ScriptDecodingException):
+            decoded_script = decode_script(serialized_script)
 
-    def test_multisig_02_of_02(self):
-        test_script = ["push_positive_2",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_2", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.MULTISIG)
-        self.assertEqual(M, 2)
-        self.assertEqual(N, 2)
+    # script is shorter than expected with data
+    def test_script_shorter_than_expected_03(self):
+        # should be 6 bytes to follow, IE 12 characters. Only has 6 characters. 
+        serialized_script = "06123456"
+        with self.assertRaises(ScriptLengthShorterThanExpected):
+            decoded_script = decode_script(serialized_script)
 
-    def test_multisig_02_of_03(self):
-        test_script = ["push_positive_2",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_3", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.MULTISIG)
-        self.assertEqual(M, 2)
-        self.assertEqual(N, 3)
+# -----------------------------------------------------------------
+#                            OPCODES
+# -----------------------------------------------------------------
 
-    def test_multisig_03_of_03(self):
-        test_script = ["push_positive_3",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_3", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.MULTISIG)
-        self.assertEqual(M, 3)
-        self.assertEqual(N, 3)
+    # script is single opcodes 1
+    def test_script_opcodes_only_01(self):
+        serialized_script = "A0"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "greaterthan"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_02_of_03_with_locking_script_type_function(self):
-        test_script = ["push_positive_2",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_3", "checkmultisig"]
-        script_type = locking_script_type(test_script)
-        self.assertEqual(script_type, Type.MULTISIG)
+    # script is single opcodes 2
+    def test_script_opcodes_only_02(self):
+        serialized_script = "AA"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "hash256"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    """
-    if this were production code I would write a function to generate all invalid combinations of M-of-N scripts but I
-    just don't care right now. if there are issues I'll see them in the unknown set. maybe I'll do this later ¯\_(ツ)_/¯
-    """
-    def test_multisig_invalid_01_of_04(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_4", "checkmultisig"
-            ]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    # script is single opcodes 3
+    def test_script_opcodes_only_03(self):
+        serialized_script = "D4"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "reserved_212"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_05(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_5", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    # script is single opcodes 4
+    def test_script_opcodes_all(self):
+        # generated. every hex value in range [79, 255] (non-data opcodes)
+        # seq 79 255 | while read n; do printf "%02x" $n; done
+        serialized_script = "4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_negative_1","reserved_80","push_positive_1","push_positive_2","push_positive_3",
+            "push_positive_4","push_positive_5","push_positive_6","push_positive_7","push_positive_8",
+            "push_positive_9","push_positive_10","push_positive_11","push_positive_12","push_positive_13",
+            "push_positive_14","push_positive_15","push_positive_16","nop","reserved_98","if_","notif",
+            "disabled_verif","disabled_vernotif","else_","endif","verify","return_","toaltstack",
+            "fromaltstack","drop2","dup2","dup3","over2","rot2","swap2","ifdup","depth","drop",
+            "dup","nip","over","pick","roll","rot","swap","tuck","disabled_cat","disabled_substr",
+            "disabled_left","disabled_right","size","disabled_invert","disabled_and","disabled_or",
+            "disabled_xor","equal","equalverify","reserved_137","reserved_138","add1","sub1","disabled_mul2",
+            "disabled_div2","negate","abs","not_","nonzero","add","sub","disabled_mul","disabled_div",
+            "disabled_mod","disabled_lshift","disabled_rshift","booland","boolor","numequal","numequalverify",
+            "numnotequal","lessthan","greaterthan","lessthanorequal","greaterthanorequal","min","max",
+            "within","ripemd160","sha1","sha256","hash160","hash256","codeseparator","checksig","checksigverify",
+            "checkmultisig","checkmultisigverify","nop1","checklocktimeverify","checksequenceverify","nop4",
+            "nop5","nop6","nop7","nop8","nop9","nop10","reserved_186","reserved_187","reserved_188","reserved_189",
+            "reserved_190","reserved_191","reserved_192","reserved_193","reserved_194","reserved_195",
+            "reserved_196","reserved_197","reserved_198","reserved_199","reserved_200","reserved_201",
+            "reserved_202","reserved_203","reserved_204","reserved_205","reserved_206","reserved_207",
+            "reserved_208","reserved_209","reserved_210","reserved_211","reserved_212","reserved_213",
+            "reserved_214","reserved_215","reserved_216","reserved_217","reserved_218","reserved_219",
+            "reserved_220","reserved_221","reserved_222","reserved_223","reserved_224","reserved_225",
+            "reserved_226","reserved_227","reserved_228","reserved_229","reserved_230","reserved_231",
+            "reserved_232","reserved_233","reserved_234","reserved_235","reserved_236","reserved_237",
+            "reserved_238","reserved_239","reserved_240","reserved_241","reserved_242","reserved_243",
+            "reserved_244","reserved_245","reserved_246","reserved_247","reserved_248","reserved_249",
+            "reserved_250","reserved_251","reserved_252","reserved_253","reserved_254","reserved_255"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_06(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_6", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    # script is data of various lengths
+    def test_script_various_data_lengths_00(self):
+        serialized_script = "00"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_0"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_07(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_7", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_various_data_lengths_01(self):
+        serialized_script = "01ff"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_1", "ff"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_08(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_8", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_various_data_lengths_02(self):
+        serialized_script = "01aaff"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_1", "aa", "reserved_255"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_09(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_9", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_various_data_lengths_03(self):
+        serialized_script = "02aaff"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_2", "aaff"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_10(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_10", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_various_data_lengths_04(self):
+        serialized_script = "10000102030405060708090A0B0C0D0E10"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_16", "000102030405060708090A0B0C0D0E10"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_11(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_11", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_various_data_lengths_05(self):
+        serialized_script = "0600010203040510000102030405060708090A0B0C0D0E10"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_6", "000102030405", "push_size_16", "000102030405060708090A0B0C0D0E10"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_12(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_12", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_data_lengths_uncompressed_pubkey(self):
+        serialized_script = "4104aadcac168ef4c4cc7a1165755b1235043c3ee87effbe1b1d00677d684978fa5df6eeca25032ec850336594337daf71845a3f308a92d6261cd82e35e21b112be0ac"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_65", UNCOMPRESSED_PUBLIC_KEY, "checksig"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_13(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_13", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_data_lengths_compressed_pubkey(self):
+        serialized_script = "210214f296079b181ab76cd817f8583761d9ba5b00ca46f16eadfab8e0bb3a2b0420ac"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "push_size_33", COMPRESSED_PUBLIC_KEY_01, "checksig"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
-    def test_multisig_invalid_01_of_14(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_14", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
-
-    def test_multisig_invalid_01_of_15(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_15", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
-
-    def test_multisig_invalid_01_of_16(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_16", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
-
-    def test_multisig_invalid_01_of_01_total_less_than_expected(self):
-        test_script = ["push_positive_1",
-            COMPRESSED_PUBLIC_KEY_02, COMPRESSED_PUBLIC_KEY_02,
-            "push_positive_1", "checkmultisig"]
-        script_type, M, N = locking_script_multisig_type(test_script)
-        self.assertEqual(script_type, Type.UNKNOWN)
-        self.assertEqual(M, 0)
-        self.assertEqual(N, 0)
+    def test_script_data_lengths_pubkeyhash(self):
+        serialized_script = "76a91461cf5af7bb84348df3fd695672e53c7d5b3f3db988ac"
+        decoded_script = decode_script(serialized_script)
+        correct_decoded_script = [
+            "dup", "hash160", "push_size_20", PUBKEYHASH, "equalverify", "checksig"
+        ]
+        self.assertEqual(decoded_script, correct_decoded_script)
 
 if __name__ == "__main__":
     unittest.main()
