@@ -1,8 +1,7 @@
 import unittest
 from context import *
 from common import *
-from keys import *
-from keys.private import NUM_ELLIPTIC_CURVE_POINTS, PrivateKey
+from keys.ring import NUM_ELLIPTIC_CURVE_POINTS, KeyRing
 
 # -----------------------------------------------------------------
 #                            PRIVATE KEYS
@@ -12,120 +11,120 @@ class TestPrivateKey(unittest.TestCase):
 
     def test_initialization_with_nonsense_string(self):
         with self.assertRaises(ValueError):
-            private_key = PrivateKey("nonsense string")
+            key_ring = KeyRing("nonsense string")
 
     def test_initialization_with_empty_string(self):
         with self.assertRaises(ValueError):
-            private_key = PrivateKey("")
+            key_ring = KeyRing("")
 
     def test_initialization_with_string_01(self):
-        private_key = PrivateKey("f")
-        self.assertEqual(15, private_key.value())
+        key_ring = KeyRing("f")
+        self.assertEqual(15, key_ring.current())
 
     def test_initialization_with_string_02(self):
-        private_key = PrivateKey("ff")
-        self.assertEqual(255, private_key.value())
+        key_ring = KeyRing("ff")
+        self.assertEqual(255, key_ring.current())
 
     def test_initialization_with_string_03(self):
-        private_key = PrivateKey("0xff")
-        self.assertEqual(255, private_key.value())
+        key_ring = KeyRing("0xff")
+        self.assertEqual(255, key_ring.current())
 
     def test_initialization_with_string_04(self):
         # zero is not a valid pubkey, should be skipped
-        private_key = PrivateKey("0x00")
-        self.assertEqual(1, private_key.value())
+        key_ring = KeyRing("0x00")
+        self.assertEqual(1, key_ring.current())
 
     def test_initialization_with_string_less_than_n(self):
         # one less than order of N
-        private_key = PrivateKey("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140")
-        self.assertEqual(115792089237316195423570985008687907852837564279074904382605163141518161494336, private_key.value())
+        key_ring = KeyRing("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140")
+        self.assertEqual(115792089237316195423570985008687907852837564279074904382605163141518161494336, key_ring.current())
 
     def test_initialization_with_string_equal_to_n(self):
         # equal to order of N
-        private_key = PrivateKey("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141")
-        self.assertEqual(1, private_key.value())
+        key_ring = KeyRing("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141")
+        self.assertEqual(1, key_ring.current())
 
     def test_initialization_with_value_01(self):
-        private_key = PrivateKey(15)
-        self.assertEqual(15, private_key.value())
+        key_ring = KeyRing(15)
+        self.assertEqual(15, key_ring.current())
 
     def test_initialization_with_value_02(self):
-        private_key = PrivateKey(255)
-        self.assertEqual(255, private_key.value())
+        key_ring = KeyRing(255)
+        self.assertEqual(255, key_ring.current())
 
     def test_initialization_with_value_03(self):
-        private_key = PrivateKey(256)
-        self.assertEqual(256, private_key.value())
+        key_ring = KeyRing(256)
+        self.assertEqual(256, key_ring.current())
 
     def test_initialization_with_value_04(self):
         # zero is not a valid pubkey, should be skipped
-        private_key = PrivateKey(0)
-        self.assertEqual(1, private_key.value())
+        key_ring = KeyRing(0)
+        self.assertEqual(1, key_ring.current())
 
     def test_initialization_with_value_less_than_n(self):
         # one less than order of N
-        private_key = PrivateKey(115792089237316195423570985008687907852837564279074904382605163141518161494336)
-        self.assertEqual(115792089237316195423570985008687907852837564279074904382605163141518161494336, private_key.value())
+        key_ring = KeyRing(115792089237316195423570985008687907852837564279074904382605163141518161494336)
+        self.assertEqual(115792089237316195423570985008687907852837564279074904382605163141518161494336, key_ring.current())
 
     def test_initialization_with_value_equal_to_n(self):
         # equal to order of N
-        private_key = PrivateKey(115792089237316195423570985008687907852837564279074904382605163141518161494337)
-        self.assertEqual(1, private_key.value())
+        key_ring = KeyRing(115792089237316195423570985008687907852837564279074904382605163141518161494337)
+        self.assertEqual(1, key_ring.current())
 
     def test_to_string_01(self):
         # zero is not a valid pubkey, should be skipped
-        private_key = PrivateKey("0x00")
-        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", private_key.__str__())
+        key_ring = KeyRing("0x00")
+        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", key_ring.__str__())
 
     def test_to_string_02(self):
         # zero is not a valid pubkey, should be skipped
-        private_key = PrivateKey(0)
-        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", private_key.__str__())
+        key_ring = KeyRing(0)
+        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", key_ring.__str__())
 
     def test_to_string_03(self):
         # this will wrap around (order) and increment over 0
-        private_key = PrivateKey(115792089237316195423570985008687907852837564279074904382605163141518161494337)
-        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", private_key.__str__())
+        key_ring = KeyRing(115792089237316195423570985008687907852837564279074904382605163141518161494337)
+        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", key_ring.__str__())
 
     def test_to_string_04(self):
-        private_key = PrivateKey("f0f0f0f0f0f0f0f0")
-        self.assertEqual("000000000000000000000000000000000000000000000000f0f0f0f0f0f0f0f0", private_key.__str__())
+        key_ring = KeyRing("f0f0f0f0f0f0f0f0")
+        self.assertEqual("000000000000000000000000000000000000000000000000f0f0f0f0f0f0f0f0", key_ring.__str__())
 
     def test_reinitialize_from_tostring_01(self):
-        private_key = PrivateKey("0")
-        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", private_key.__str__())
-        private_key2 = PrivateKey(private_key.__str__())
-        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", private_key2.__str__())
-        self.assertEqual(private_key.value(), private_key2.value())
+        key_ring = KeyRing("0")
+        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", key_ring.__str__())
+        key_ring2 = KeyRing(key_ring.__str__())
+        self.assertEqual("0000000000000000000000000000000000000000000000000000000000000001", key_ring2.__str__())
+        self.assertEqual(key_ring.current(), key_ring2.current())
 
     def test_reinitialize_from_tostring_02(self):
-        private_key = PrivateKey("f0f0f0f0f0f0f0f0")
-        self.assertEqual("000000000000000000000000000000000000000000000000f0f0f0f0f0f0f0f0", private_key.__str__())
-        private_key2 = PrivateKey(private_key.__str__())
-        self.assertEqual("000000000000000000000000000000000000000000000000f0f0f0f0f0f0f0f0", private_key2.__str__())
-        self.assertEqual(private_key.value(), private_key2.value())
+        key_ring = KeyRing("f0f0f0f0f0f0f0f0")
+        self.assertEqual("000000000000000000000000000000000000000000000000f0f0f0f0f0f0f0f0", key_ring.__str__())
+        key_ring2 = KeyRing(key_ring.__str__())
+        self.assertEqual("000000000000000000000000000000000000000000000000f0f0f0f0f0f0f0f0", key_ring2.__str__())
+        self.assertEqual(key_ring.current(), key_ring2.current())
 
     def test_next_01(self):
-        private_key = PrivateKey("0000000000000000000000000000000000000000000000000000000000000001")
-        self.assertEqual(1, private_key.value())
-        private_key.next()
-        self.assertEqual(2, private_key.value())
+        key_ring = KeyRing("0000000000000000000000000000000000000000000000000000000000000001")
+        self.assertEqual(1, key_ring.current())
+        key_ring.next()
+        self.assertEqual(2, key_ring.current())
 
     def test_next_02(self):
-        private_key = PrivateKey("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140")
-        self.assertEqual(NUM_ELLIPTIC_CURVE_POINTS - 1, private_key.value())
-        private_key.next()
-        self.assertEqual(1, private_key.value())
+        key_ring = KeyRing("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140")
+        self.assertEqual(NUM_ELLIPTIC_CURVE_POINTS - 1, key_ring.current())
+        key_ring.next()
+        self.assertEqual(1, key_ring.current())
 
     def test_next_03(self):
-        private_key = PrivateKey("0xff")
-        self.assertEqual(255, private_key.value())
-        private_key.next()
-        self.assertEqual(256, private_key.value())
-        private_key.next()
-        self.assertEqual(257, private_key.value())
-        private_key.next()
-        self.assertEqual(258, private_key.value())
+        key_ring = KeyRing("0xff")
+        self.assertEqual(255, key_ring.current())
+        key_ring.next()
+        self.assertEqual(256, key_ring.current())
+        key_ring.next()
+        self.assertEqual(257, key_ring.current())
+        key_ring.next()
+        self.assertEqual(258, key_ring.current())
 
 # class TestPublicKey(unittest.TestCase):
 

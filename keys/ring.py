@@ -2,7 +2,7 @@ import secp256k1
 
 NUM_ELLIPTIC_CURVE_POINTS = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
-class PrivateKey(object):
+class KeyRing(object):
     
     def __init__(self, value):
         if type(value) is str:
@@ -26,6 +26,9 @@ class PrivateKey(object):
 
         self.__value = value
 
+    def current(self):
+        return self.__value
+        
     def next(self):
         self.__create_private_key(self.__value + 1)
 
@@ -34,6 +37,3 @@ class PrivateKey(object):
 
     def hex(self):
         return f"{self.__value:0{64}x}"
-
-    def value(self):
-        return self.__value
