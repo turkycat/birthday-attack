@@ -1,4 +1,5 @@
 import secp256k1
+import hashlib
 
 NUM_ELLIPTIC_CURVE_POINTS = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
@@ -38,6 +39,10 @@ class KeyRing(object):
 
     def public_key(self, compressed = True):
         return self.__private_key.pubkey.serialize(compressed).hex()
+
+    def public_key_hash(self, compressed = True):
+        serialized_pubkey = self.__private_key.pubkey.serialize(compressed)
+        return hashlib.new("ripemd160", hashlib.sha256(serialized_pubkey).digest()).hexdigest()
 
     def hex(self):
         return f"{self.__value:0{64}x}"

@@ -149,8 +149,8 @@ class TestPublicKey(unittest.TestCase):
         """
 
         sk = "e7fa4c2e2c30b2e44da1612a1fc5506de802ee602dfad922e3e47681c89cbc3b"
-        pk_uncompressed = "042f3037fed32854cbfdc791ee0b1a2c21460beb399737a99e482ef0d5e7e5ea58bdbb052a0cbd5fa964f5c30fd2a43b9d8d0527c0a10807b8e0416f73f15e38eb"
         pk_compressed = "032f3037fed32854cbfdc791ee0b1a2c21460beb399737a99e482ef0d5e7e5ea58"
+        pk_uncompressed = "042f3037fed32854cbfdc791ee0b1a2c21460beb399737a99e482ef0d5e7e5ea58bdbb052a0cbd5fa964f5c30fd2a43b9d8d0527c0a10807b8e0416f73f15e38eb"
         
         key_ring = KeyRing(sk)
         self.assertEqual(key_ring.hex(), sk)
@@ -169,8 +169,8 @@ class TestPublicKey(unittest.TestCase):
         """
 
         sk = "da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f"
-        pk_uncompressed = "040839bf3cfa7b4719807f5ffa5db30a52792bd2ca1699a480e9ddef15f50f1c9871a0cb661ac102fc8a3ec829fe56ecf068997550ac47ce7eadf470dbbe41ac2e"
         pk_compressed = "020839bf3cfa7b4719807f5ffa5db30a52792bd2ca1699a480e9ddef15f50f1c98"
+        pk_uncompressed = "040839bf3cfa7b4719807f5ffa5db30a52792bd2ca1699a480e9ddef15f50f1c9871a0cb661ac102fc8a3ec829fe56ecf068997550ac47ce7eadf470dbbe41ac2e"
         
         key_ring = KeyRing(sk)
         self.assertEqual(key_ring.hex(), sk)
@@ -189,8 +189,8 @@ class TestPublicKey(unittest.TestCase):
         """
 
         sk = "da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f"
-        pk_uncompressed = "040839bf3cfa7b4719807f5ffa5db30a52792bd2ca1699a480e9ddef15f50f1c9871a0cb661ac102fc8a3ec829fe56ecf068997550ac47ce7eadf470dbbe41ac2e"
         pk_compressed = "020839bf3cfa7b4719807f5ffa5db30a52792bd2ca1699a480e9ddef15f50f1c98"
+        pk_uncompressed = "040839bf3cfa7b4719807f5ffa5db30a52792bd2ca1699a480e9ddef15f50f1c9871a0cb661ac102fc8a3ec829fe56ecf068997550ac47ce7eadf470dbbe41ac2e"
         
         key_ring = KeyRing(sk)
         self.assertEqual(key_ring.hex(), sk)
@@ -205,12 +205,85 @@ class TestPublicKey(unittest.TestCase):
         echo -n da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b40 | bx ec-to-public -u
         049125a102ae4b329f217fce4a0aef5622a08e6e4791006784e73928d5cfa2a3dbcc14b75a9f40622e0191d29ad92ef6856f7663c8156d80b8a939b51b45db17b3
         """
-        pk_uncompressed = "049125a102ae4b329f217fce4a0aef5622a08e6e4791006784e73928d5cfa2a3dbcc14b75a9f40622e0191d29ad92ef6856f7663c8156d80b8a939b51b45db17b3"
         pk_compressed = "039125a102ae4b329f217fce4a0aef5622a08e6e4791006784e73928d5cfa2a3db"
+        pk_uncompressed = "049125a102ae4b329f217fce4a0aef5622a08e6e4791006784e73928d5cfa2a3dbcc14b75a9f40622e0191d29ad92ef6856f7663c8156d80b8a939b51b45db17b3"
         key_ring.next()
         self.assertEqual(key_ring.hex(), sk_plus_one)
         self.assertEqual(key_ring.public_key(), pk_compressed)
         self.assertEqual(key_ring.public_key(False), pk_uncompressed)
+        
+    def test_public_key_hash_generation_01(self):
+        """
+        $ python -m secp256k1 privkey -p
+        e7fa4c2e2c30b2e44da1612a1fc5506de802ee602dfad922e3e47681c89cbc3b
+        Public key: 032f3037fed32854cbfdc791ee0b1a2c21460beb399737a99e482ef0d5e7e5ea58
+
+        $ echo -n e7fa4c2e2c30b2e44da1612a1fc5506de802ee602dfad922e3e47681c89cbc3b | bx ec-to-public | bx sha256 | bx ripemd160
+        2c2f1309a1c21c25d0a7f4f8f2c18cee153ec88a
+        $ echo -n e7fa4c2e2c30b2e44da1612a1fc5506de802ee602dfad922e3e47681c89cbc3b | bx ec-to-public -u | bx sha256 | bx ripemd160
+        a2039ea6f075321f4b0a0cfa643cca4f35311793
+        """
+
+        sk = "e7fa4c2e2c30b2e44da1612a1fc5506de802ee602dfad922e3e47681c89cbc3b"
+        pkh_compressed = "2c2f1309a1c21c25d0a7f4f8f2c18cee153ec88a"
+        pkh_uncompressed = "a2039ea6f075321f4b0a0cfa643cca4f35311793"
+        
+        key_ring = KeyRing(sk)
+        self.assertEqual(key_ring.hex(), sk)
+        self.assertEqual(key_ring.public_key_hash(), pkh_compressed)
+        self.assertEqual(key_ring.public_key_hash(False), pkh_uncompressed)
+
+    def test_public_key_hash_generation_02(self):
+        """
+        $ bx seed | bx ec-new
+        da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f
+        $ echo -n da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f | bx ec-to-public | bx sha256 | bx ripemd160
+        1fa511193650bf77f0f265473cec43a2ce534340
+        $ echo -n da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f | bx ec-to-public -u | bx sha256 | bx ripemd160
+        29dbe960675018b9dbadefe5b51a1ffb70d58e0f
+        """
+
+        sk = "da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f"
+        pkh_compressed = "1fa511193650bf77f0f265473cec43a2ce534340"
+        pkh_uncompressed = "29dbe960675018b9dbadefe5b51a1ffb70d58e0f"
+        
+        key_ring = KeyRing(sk)
+        self.assertEqual(key_ring.hex(), sk)
+        self.assertEqual(key_ring.public_key_hash(), pkh_compressed)
+        self.assertEqual(key_ring.public_key_hash(False), pkh_uncompressed)
+
+    def test_public_key_hash_generation_02_and_next(self):
+        """
+        $ bx seed | bx ec-new
+        da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f
+        $ echo -n da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f | bx ec-to-public | bx sha256 | bx ripemd160
+        1fa511193650bf77f0f265473cec43a2ce534340
+        $ echo -n da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f | bx ec-to-public -u | bx sha256 | bx ripemd160
+        29dbe960675018b9dbadefe5b51a1ffb70d58e0f
+        """
+
+        sk = "da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b3f"
+        pkh_compressed = "1fa511193650bf77f0f265473cec43a2ce534340"
+        pkh_uncompressed = "29dbe960675018b9dbadefe5b51a1ffb70d58e0f"
+        
+        key_ring = KeyRing(sk)
+        self.assertEqual(key_ring.hex(), sk)
+        self.assertEqual(key_ring.public_key_hash(), pkh_compressed)
+        self.assertEqual(key_ring.public_key_hash(False), pkh_uncompressed)
+
+        sk_plus_one = "da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b40"
+        """
+        $ echo -n da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b40 | bx ec-to-public | bx sha256 | bx ripemd160
+        007287b3ebf971e3f72483a8b611fdf310a1ecc5
+        $ echo -n da36ebf16041ef6deb7354a97a3e5d86e96e61ae170319dcd0c76a8ea5d98b40 | bx ec-to-public -u | bx sha256 | bx ripemd160
+        09655e26fc464a4e4c48fdd07b3a511017609c48
+        """
+        pk_compressed = "007287b3ebf971e3f72483a8b611fdf310a1ecc5"
+        pk_uncompressed = "09655e26fc464a4e4c48fdd07b3a511017609c48"
+        key_ring.next()
+        self.assertEqual(key_ring.hex(), sk_plus_one)
+        self.assertEqual(key_ring.public_key_hash(), pk_compressed)
+        self.assertEqual(key_ring.public_key_hash(False), pk_uncompressed)
 
 if __name__ == "__main__":
     unittest.main()

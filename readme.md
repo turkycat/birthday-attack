@@ -14,13 +14,6 @@ at one point before Christmas 2021, I decided to put a pin in this and no longer
 
 Each todo below will be paired with the rationality of why this is necessary for completeness of this project.
 
-### to generate collisions
-- turn private keys into:
-  - uncompressed public key
-  - compressed public key
-  - public key hash
-  - simple scripts to hash
-
 ### to check apples against apples, oranges against oranges
 - maintain sets of the public key types
 
