@@ -61,6 +61,7 @@ or install manually
 ```bash
 pip install python-bitcoinrpc
 pip install alive-progress
+pip install secp256k1
 ```
 
 ## tests
