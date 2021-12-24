@@ -7,6 +7,8 @@ class KeyRing(object):
     def __init__(self, value):
         if type(value) is str:
             value = int(value, 16)
+        if type(value) is not int:
+            raise ValueError("KeyRing must be initialized with a hex string or an integer")
 
         self.__create_private_key(value)
 
@@ -15,16 +17,18 @@ class KeyRing(object):
 
     def __create_private_key(self, value):
         value = value % NUM_ELLIPTIC_CURVE_POINTS
-        while True:
+        
+        private_key = None
+        while private_key is None:
             try:
-                self.__private_key = secp256k1.PrivateKey(bytes.fromhex(f"{value:0{64}x}"))
-                break
+                private_key = secp256k1.PrivateKey(bytes.fromhex(f"{value:0{64}x}"))
             except TypeError as e:
                 raise e
             except Exception:
                 value = (value + 1) % NUM_ELLIPTIC_CURVE_POINTS
 
-        self.__value = value
+        self.__private_key = private_key
+        self.__value = int(private_key.serialize(), 16)
 
     def current(self):
         return self.__value
@@ -33,7 +37,7 @@ class KeyRing(object):
         self.__create_private_key(self.__value + 1)
 
     def public_key(self, compressed = True):
-        pass
+        return self.__private_key.pubkey.serialize(compressed).hex()
 
     def hex(self):
         return f"{self.__value:0{64}x}"
