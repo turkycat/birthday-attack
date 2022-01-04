@@ -86,55 +86,55 @@ def decode_transaction_scripts(transactions):
                 scripts_file.write("\n")
                 progress_bar()
 
-# iterate over a set of block transactions, retrieve the transaction data in batches, and process them
-def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
-    for txid in txids:
-        transaction = rpc.getrawtransaction(txid, True, block_hash)
-        for input in transaction["vin"]:
+# interpret a single transaction
+def process_transaction(rpc, txid, block_hash):
+    inputs = set()
+    outputs = set()
+    transaction = rpc.getrawtransaction(txid, True, block_hash)
 
-            # coinbase transactions do not have input txids and cannot already exist in the utxo set
-            if input.get("coinbase"):
-                break
+    for vin in transaction["vin"]:
+        input = TXInput.from_dictionary(vin)
+        if input is not None:
+            inputs.add(input)
 
-            spent_output = TXInput.from_dictionary(input)
-            if spent_output in utxo_set:
-                log.info(f"removing spent output {spent_output}")
-                utxo_set.remove(spent_output)
-            else:
-                log.error(f"spent output not found: {spent_output}")
+    for vout in transaction["vout"]:
+        output = TXOutput.from_dictionary(transaction["txid"], vout)
+        if output is not None:
+            outputs.add(output)
 
-        # add all outputs to utxo set
-        for output in transaction["vout"]:
-            new_output = TXOutput(transaction["txid"], output["n"], block_height, output["value"], output["scriptPubKey"]["hex"])
-            log.info(f"adding new output with id: {new_output}")
-            utxo_set.add(new_output)
+            # try:
+            #     decoded_script = script.decode_script(new_output.serialized_script)
+            #     script_type = script.locking_script_type(decoded_script)
 
-            try:
-                decoded_script = script.decode_script(new_output.serialized_script)
-                script_type = script.locking_script_type(decoded_script)
+            #     if script_type == script.Type.UNKNOWN:
+            #         with open(file_paths[FILE_NAME_UNKNOWN_SCRIPTS], "a", encoding = "utf-8") as unknown_scripts_file:
+            #             unknown_scripts_file.write(f"{new_output.serialize()}\n")
+            #             unknown_scripts_file.write(f"{decoded_script}\n\n")
+            #     if script_type == script.Type.ANYONE_CAN_SPEND:
+            #         with open(file_paths[FILE_NAME_ANYONE_CAN_PAY], "a", encoding = "utf-8") as anyone_can_pay_scripts_file:
+            #             anyone_can_pay_scripts_file.write(f"{new_output.serialize()}\n")
+            #             anyone_can_pay_scripts_file.write(f"{decoded_script}\n\n")
+            # except script.ScriptDecodingException as err:
+            #     log.error(f"ScriptDecodingException occurred at block {block_height}\n{new_output}\n{err}")
+            #     pass
+    return inputs, outputs
 
-                if script_type == script.Type.UNKNOWN:
-                    with open(file_paths[FILE_NAME_UNKNOWN_SCRIPTS], "a", encoding = "utf-8") as unknown_scripts_file:
-                        unknown_scripts_file.write(f"{new_output.serialize()}\n")
-                        unknown_scripts_file.write(f"{decoded_script}\n\n")
-                if script_type == script.Type.ANYONE_CAN_SPEND:
-                    with open(file_paths[FILE_NAME_ANYONE_CAN_PAY], "a", encoding = "utf-8") as anyone_can_pay_scripts_file:
-                        anyone_can_pay_scripts_file.write(f"{new_output.serialize()}\n")
-                        anyone_can_pay_scripts_file.write(f"{decoded_script}\n\n")
-            except script.ScriptDecodingException as err:
-                log.error(f"ScriptDecodingException occurred at block {block_height}\n{new_output}\n{err}")
-                pass
-    return True
-
-def process_block(rpc, utxo_set, block_height):
+# interprets all transactions from a specific block, returns a union of two sets: inputs consumed and outputs created
+# note: as it is possible to consume a new output as an input in the same block, some equiv TXIDs may exist in both sets
+def process_block(rpc, block_height):
     block_hash = rpc.getblockhash(block_height)
     block = rpc.getblock(block_hash)
     txids = block["tx"]
     log.info(f"block {block_height} with hash {block_hash} contains {len(txids)} transactions")
+
+    block_inputs = set()
+    block_outputs = set()
+    for txid in txids:
+        inputs, outputs = process_transaction(rpc, txid, block_height, block_hash)
+        block_inputs = block_inputs.union(inputs)
+        block_outputs = block_outputs.union(outputs)
     
-    # TODO: return sets to perform unions and intersections
-    if process_transactions(rpc, utxo_set, txids, block_height, block_hash):
-        return block_height
+    return block_inputs, block_outputs
 
 # -----------------------------------------------------------------
 #                        saving & loading
@@ -232,10 +232,16 @@ if __name__ == "__main__":
         target_block_height = get_target_block_height(rpc)
 
         while last_block_processed < target_block_height and time.time() < next_save_time:
-            next_block = last_block_processed + 1
-            print(f"reading block {next_block}", end = "\r")
+            current_block = last_block_processed + 1
+            print(f"reading block {current_block}", end = "\r")
             try:
-                last_block_processed = process_block(rpc, utxo_set, next_block) or last_block_processed
+                block_inputs, block_outputs = process_block(rpc, current_block)
+
+                # we must add all new outputs to our primary set first, then subtract spent outputs from that set
+                modified_utxo_set = utxo_set.union(block_outputs)
+                modified_utxo_set = modified_utxo_set.difference(block_inputs)
+                utxo_set = modified_utxo_set
+                last_block_processed = current_block
             except KeyboardInterrupt:
                 log.info(f"KeyboardInterrupt intercepted at {time.time()}")
                 print(f"Keyboard interrupt received, saving and stopping...")

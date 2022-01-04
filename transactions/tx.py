@@ -69,6 +69,19 @@ class TXOutput(TXID):
         script = str(info[3])
         return TXOutput(hash, index, value_in_sats, script)
 
+    @classmethod
+    def from_dictionary(cls, txid, output_data):
+        try:
+            index = output_data["n"]
+            value = output_data["value"]
+            script_pub_key = output_data["scriptPubKey"]["hex"]
+
+            return TXOutput(txid, index, value, script_pub_key)
+        except KeyError:
+            pass
+
+        return None
+
 class TXInput(TXID):
 
     def __init__(self, hash, index, serialized_scriptSig = None, witness = None):
@@ -89,10 +102,19 @@ class TXInput(TXID):
 
     @classmethod
     def from_dictionary(cls, input_data):
-        hash = input_data["txid"]
-        index = input_data["vout"]
+        # coinbase transactions do not have input txids
+        if input_data.get("coinbase"):
+            return None
 
-        if input_data.get("txinwitness"):
-            return TXInput(hash, index, witness = input_data["txinwitness"])
+        try:
+            hash = input_data["txid"]
+            index = input_data["vout"]
 
-        return TXInput(hash, index, input["scriptSig"]["hex"])
+            if input_data.get("txinwitness"):
+                return TXInput(hash, index, witness = input_data["txinwitness"])
+
+            return TXInput(hash, index, input_data["scriptSig"]["hex"])
+        except KeyError:
+            pass
+
+        return None
