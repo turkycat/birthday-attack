@@ -130,7 +130,7 @@ def process_block(rpc, block_height):
     block_inputs = set()
     block_outputs = set()
     for txid in txids:
-        inputs, outputs = process_transaction(rpc, txid, block_height, block_hash)
+        inputs, outputs = process_transaction(rpc, txid, block_hash)
         block_inputs = block_inputs.union(inputs)
         block_outputs = block_outputs.union(outputs)
     
@@ -206,8 +206,8 @@ def evaulate_arguments():
             options[OPTION_CLEAN] = True
     return options
 
-TESTING = False
-TESTING_HEIGHT = 10000
+TESTING = True
+TESTING_HEIGHT = 1000
 def get_target_block_height(rpc):
     best_block_hash = rpc.getbestblockhash()
     best_block = rpc.getblock(best_block_hash)

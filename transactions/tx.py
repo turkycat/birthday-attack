@@ -36,9 +36,10 @@ class TXID(object):
 SATS_PER_BITCOIN  = 100,000,000
 class TXOutput(TXID):
 
-    def __init__(self, hash, index, value_in_sats, serialized_script):
+    def __init__(self, hash, index, value_in_sats, serialized_script, script_type):
         super().__init__(hash, index)
         self.serialized_script = serialized_script
+        self.script_type = script_type
 
         if type(value_in_sats) is float:
             value_in_sats = int(value_in_sats * SATS_PER_BITCOIN)
@@ -48,35 +49,37 @@ class TXOutput(TXID):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXOutput object: {self.hash} {self.index}, {self.value_in_sats}, {self.serialized_script}>>"
+        return f"<<TXOutput object: {self.hash} {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script})"
+        return f"TXOutput({self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type})"
 
     def serialize(self):
-        info = [self.hash, str(self.index), str(self.value_in_sats), self.serialized_script]
+        info = [self.hash, str(self.index), str(self.value_in_sats), self.serialized_script, self.script_type]
         return ",".join(info)
 
     @classmethod
     def deserialize(cls, data):
         info = data.split(",")
-        if len(info) < 4:
+        if len(info) < 5:
             return None
 
         hash = str(info[0])
         index = int(info[1])
         value_in_sats = int(info[2])
         script = str(info[3])
-        return TXOutput(hash, index, value_in_sats, script)
+        type = str(info[4])
+        return TXOutput(hash, index, value_in_sats, script, type)
 
     @classmethod
     def from_dictionary(cls, txid, output_data):
         try:
             index = output_data["n"]
             value = output_data["value"]
-            script_pub_key = output_data["scriptPubKey"]["hex"]
+            serialized_script = output_data["scriptPubKey"]["hex"]
+            script_type = output_data["scriptPubKey"]["type"]
 
-            return TXOutput(txid, index, value, script_pub_key)
+            return TXOutput(txid, index, value, serialized_script, script_type)
         except KeyError:
             pass
 
