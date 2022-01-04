@@ -36,9 +36,8 @@ class TXID(object):
 SATS_PER_BITCOIN  = 100,000,000
 class TXOutput(TXID):
 
-    def __init__(self, hash, index, block_height, value_in_sats, serialized_script):
+    def __init__(self, hash, index, value_in_sats, serialized_script):
         super().__init__(hash, index)
-        self.block_height = block_height
         self.serialized_script = serialized_script
 
         if type(value_in_sats) is float:
@@ -49,27 +48,26 @@ class TXOutput(TXID):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXOutput object: {self.hash} {self.index}, {self.block_height}, {self.value_in_sats}, {self.serialized_script}>>"
+        return f"<<TXOutput object: {self.hash} {self.index}, {self.value_in_sats}, {self.serialized_script}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.value_in_sats}, {self.serialized_script})"
+        return f"TXOutput({self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script})"
 
     def serialize(self):
-        info = [self.hash, str(self.index), str(self.block_height), str(self.value_in_sats), self.serialized_script]
+        info = [self.hash, str(self.index), str(self.value_in_sats), self.serialized_script]
         return ",".join(info)
 
     @classmethod
     def deserialize(cls, data):
         info = data.split(",")
-        if len(info) < 5:
+        if len(info) < 4:
             return None
 
         hash = str(info[0])
         index = int(info[1])
-        block_height = int(info[2])
-        value_in_sats = int(info[3])
-        script = str(info[4])
-        return TXOutput(hash, index, block_height, value_in_sats, script)
+        value_in_sats = int(info[2])
+        script = str(info[3])
+        return TXOutput(hash, index, value_in_sats, script)
 
 class TXInput(TXID):
 

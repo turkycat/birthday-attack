@@ -8,19 +8,17 @@ class TestTxOutputSerialization(unittest.TestCase):
     def test_serialize_01(self):
         serialized_data = txoutput_01.serialize()
         split_items = serialized_data.split(",")
-        self.assertTrue(len(split_items) == 5)
+        self.assertTrue(len(split_items) == 4)
         self.assertEqual(split_items[0], TRANSACTION_01_HASH)
         self.assertEqual(split_items[1], str(TRANSACTION_01_INDEX))
-        self.assertEqual(split_items[2], str(TRANSACTION_01_BLOCK_HEIGHT))
-        self.assertEqual(split_items[3], str(TRANSACTION_01_VALUE))
-        self.assertEqual(split_items[4], TRANSACTION_01_SCRIPT)
+        self.assertEqual(split_items[2], str(TRANSACTION_01_VALUE))
+        self.assertEqual(split_items[3], TRANSACTION_01_SCRIPT)
 
     def test_deserialize_01(self):
-        serialized_data = "5a189242e85c9670cefac381de8423c11fd9d4b0ebcf86468282e0fc1fe78fb8,0,4,1240000000,2103bddd330f9f666ba93f46e6dd2717aba0878e1ecefbe5860373b2524f064a13f5ac"
+        serialized_data = "5a189242e85c9670cefac381de8423c11fd9d4b0ebcf86468282e0fc1fe78fb8,0,1240000000,2103bddd330f9f666ba93f46e6dd2717aba0878e1ecefbe5860373b2524f064a13f5ac"
         txout = TXOutput.deserialize(serialized_data)
         self.assertEqual(txoutput_01.hash, txout.hash)
         self.assertEqual(txoutput_01.index, txout.index)
-        self.assertEqual(txoutput_01.block_height, txout.block_height)
         self.assertEqual(txoutput_01.value_in_sats, txout.value_in_sats)
         self.assertEqual(txoutput_01.serialized_script, txout.serialized_script)
 
@@ -29,7 +27,6 @@ class TestTxOutputSerialization(unittest.TestCase):
         txout = TXOutput.deserialize(serialized_data)
         self.assertEqual(txoutput_01.hash, txout.hash)
         self.assertEqual(txoutput_01.index, txout.index)
-        self.assertEqual(txoutput_01.block_height, txout.block_height)
         self.assertEqual(txoutput_01.value_in_sats, txout.value_in_sats)
         self.assertEqual(txoutput_01.serialized_script, txout.serialized_script)
 
