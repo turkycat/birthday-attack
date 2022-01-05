@@ -207,7 +207,7 @@ def evaulate_arguments():
     return options
 
 TESTING = True
-TESTING_HEIGHT = 1000
+TESTING_HEIGHT = 10000
 def get_target_block_height(rpc):
     best_block_hash = rpc.getbestblockhash()
     best_block = rpc.getblock(best_block_hash)
@@ -240,8 +240,10 @@ if __name__ == "__main__":
                 # we must add all new outputs to our primary set first, then subtract spent outputs from that set
                 modified_utxo_set = utxo_set.union(block_outputs)
                 modified_utxo_set = modified_utxo_set.difference(block_inputs)
-                utxo_set = modified_utxo_set
-                last_block_processed = current_block
+
+                with DelayedKeyboardInterrupt():
+                    utxo_set = modified_utxo_set
+                    last_block_processed = current_block
             except KeyboardInterrupt:
                 log.info(f"KeyboardInterrupt intercepted at {time.time()}")
                 print(f"Keyboard interrupt received, saving and stopping...")

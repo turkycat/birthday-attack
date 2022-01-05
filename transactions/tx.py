@@ -1,3 +1,4 @@
+from base64 import decode
 import transactions.opcode as opcode
 import transactions.script as script
 
@@ -53,6 +54,33 @@ class TXOutput(TXID):
 
     def __repr__(self):
         return f"TXOutput({self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type})"
+
+    def get_pubkey(self):
+        if self.script_type != "pubkey" or self.serialized_script is None:
+            return None
+
+        decoded_script = script.decode_script(self.serialized_script)
+        if decoded_script is not None and len(decoded_script) > 1 and script.TypeTemplate.PUBLIC_KEY.match(decoded_script[1]):
+            return decoded_script[1]
+
+    def get_pubkeyhash(self):
+        if self.serialized_script is None:
+            return None
+
+        if not (self.script_type == "pubkeyhash" or self.script_type == "witness_v0_keyhash"):
+            return None
+
+        decoded_script = script.decode_script(self.serialized_script)
+        if decoded_script is None:
+            return None
+
+        if self.script_type == "pubkeyhash":
+            if len(decoded_script) > 3 and script.TypeTemplate.PUBLIC_KEY_HASH.match(decoded_script[3]):
+                return decoded_script[3]
+
+        if self.script_type == "witness_v0_keyhash":
+            if len(decoded_script) > 2 and script.TypeTemplate.PUBLIC_KEY_HASH.match(decoded_script[2]):
+                return decoded_script[2]
 
     def serialize(self):
         info = [self.hash, str(self.index), str(self.value_in_sats), self.serialized_script, self.script_type]
