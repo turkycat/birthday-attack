@@ -29,10 +29,13 @@ class TXID(object):
         return isinstance(other, TXID) and (self.hash == other.hash) and (self.index == other.index)
 
     def __str__(self):
-        return f"<<Transaction object: {self.hash} {self.index}>>"
+        return f"<<Transaction object: {self.hash}, {self.index}>>"
 
     def __repr__(self):
         return f"Transaction({self.hash}, {self.index})"
+
+    def id(self):
+        return self.hash + "," + str(self.index)
 
 SATS_PER_BITCOIN  = 100,000,000
 class TXOutput(TXID):
@@ -50,7 +53,7 @@ class TXOutput(TXID):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXOutput object: {self.hash} {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}>>"
+        return f"<<TXOutput object: {self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}>>"
 
     def __repr__(self):
         return f"TXOutput({self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type})"
