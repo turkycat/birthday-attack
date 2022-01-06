@@ -1,3 +1,4 @@
+from base64 import decode
 import transactions.opcode as opcode
 import transactions.script as script
 
@@ -28,18 +29,21 @@ class TXID(object):
         return isinstance(other, TXID) and (self.hash == other.hash) and (self.index == other.index)
 
     def __str__(self):
-        return f"<<Transaction object: {self.hash} {self.index}>>"
+        return f"<<Transaction object: {self.hash}, {self.index}>>"
 
     def __repr__(self):
         return f"Transaction({self.hash}, {self.index})"
 
+    def id(self):
+        return self.hash + "," + str(self.index)
+
 SATS_PER_BITCOIN  = 100,000,000
 class TXOutput(TXID):
 
-    def __init__(self, hash, index, block_height, value_in_sats, serialized_script):
+    def __init__(self, hash, index, value_in_sats, serialized_script, script_type):
         super().__init__(hash, index)
-        self.block_height = block_height
         self.serialized_script = serialized_script
+        self.script_type = script_type
 
         if type(value_in_sats) is float:
             value_in_sats = int(value_in_sats * SATS_PER_BITCOIN)
@@ -49,13 +53,40 @@ class TXOutput(TXID):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXOutput object: {self.hash} {self.index}, {self.block_height}, {self.value_in_sats}, {self.serialized_script}>>"
+        return f"<<TXOutput object: {self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.block_height}, {self.value_in_sats}, {self.serialized_script})"
+        return f"TXOutput({self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type})"
+
+    def get_pubkey(self):
+        if self.script_type != "pubkey" or self.serialized_script is None:
+            return None
+
+        decoded_script = script.decode_script(self.serialized_script)
+        if decoded_script is not None and len(decoded_script) > 1 and script.TypeTemplate.PUBLIC_KEY.match(decoded_script[1]):
+            return decoded_script[1]
+
+    def get_pubkeyhash(self):
+        if self.serialized_script is None:
+            return None
+
+        if not (self.script_type == "pubkeyhash" or self.script_type == "witness_v0_keyhash"):
+            return None
+
+        decoded_script = script.decode_script(self.serialized_script)
+        if decoded_script is None:
+            return None
+
+        if self.script_type == "pubkeyhash":
+            if len(decoded_script) > 3 and script.TypeTemplate.PUBLIC_KEY_HASH.match(decoded_script[3]):
+                return decoded_script[3]
+
+        if self.script_type == "witness_v0_keyhash":
+            if len(decoded_script) > 2 and script.TypeTemplate.PUBLIC_KEY_HASH.match(decoded_script[2]):
+                return decoded_script[2]
 
     def serialize(self):
-        info = [self.hash, str(self.index), str(self.block_height), str(self.value_in_sats), self.serialized_script]
+        info = [self.hash, str(self.index), str(self.value_in_sats), self.serialized_script, self.script_type]
         return ",".join(info)
 
     @classmethod
@@ -66,10 +97,24 @@ class TXOutput(TXID):
 
         hash = str(info[0])
         index = int(info[1])
-        block_height = int(info[2])
-        value_in_sats = int(info[3])
-        script = str(info[4])
-        return TXOutput(hash, index, block_height, value_in_sats, script)
+        value_in_sats = int(info[2])
+        script = str(info[3])
+        type = str(info[4])
+        return TXOutput(hash, index, value_in_sats, script, type)
+
+    @classmethod
+    def from_dictionary(cls, txid, output_data):
+        try:
+            index = output_data["n"]
+            value = output_data["value"]
+            serialized_script = output_data["scriptPubKey"]["hex"]
+            script_type = output_data["scriptPubKey"]["type"]
+
+            return TXOutput(txid, index, value, serialized_script, script_type)
+        except KeyError:
+            pass
+
+        return None
 
 class TXInput(TXID):
 
@@ -91,10 +136,19 @@ class TXInput(TXID):
 
     @classmethod
     def from_dictionary(cls, input_data):
-        hash = input_data["txid"]
-        index = input_data["vout"]
+        # coinbase transactions do not have input txids
+        if input_data.get("coinbase"):
+            return None
 
-        if input_data.get("txinwitness"):
-            return TXInput(hash, index, witness = input_data["txinwitness"])
+        try:
+            hash = input_data["txid"]
+            index = input_data["vout"]
 
-        return TXInput(hash, index, input["scriptSig"]["hex"])
+            if input_data.get("txinwitness"):
+                return TXInput(hash, index, witness = input_data["txinwitness"])
+
+            return TXInput(hash, index, input_data["scriptSig"]["hex"])
+        except KeyError:
+            pass
+
+        return None

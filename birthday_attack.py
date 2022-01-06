@@ -3,6 +3,7 @@ from transactions.tx import TXOutput, TXInput
 from transactions import script
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
+from keys.ring import KeyRing
 from alive_progress import alive_bar
 
 # -----------------------------------------------------------------
@@ -10,31 +11,30 @@ from alive_progress import alive_bar
 # -----------------------------------------------------------------
 
 # file and output related constants
-FILE_NAME_ANYONE_CAN_PAY = "anyone_can_pay.txt"
 FILE_NAME_CACHE = "cache.json"
 FILE_NAME_ERROR = "errors.txt"
 FILE_NAME_LOG = "logfile.txt"
 FILE_NAME_SCRIPTS = "scripts.txt"
-FILE_NAME_UNKNOWN_SCRIPTS = "unknown_scripts.txt"
+FILE_NAME_MATCHES = "matches.txt"
 FILE_NAME_UTXO = "utxos.txt"
 
 DIR_OUTPUT_RELATIVE = "output"
 DIR_OUTPUT_ABSOLUTE = os.path.join(os.getcwd(), DIR_OUTPUT_RELATIVE)
 file_paths = {
-    FILE_NAME_ANYONE_CAN_PAY: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_ANYONE_CAN_PAY),
     FILE_NAME_CACHE: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_CACHE),
     FILE_NAME_ERROR: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_ERROR),
     FILE_NAME_LOG: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_LOG),
+    FILE_NAME_MATCHES: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_MATCHES),
     FILE_NAME_SCRIPTS: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_SCRIPTS),
-    FILE_NAME_UNKNOWN_SCRIPTS: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_UNKNOWN_SCRIPTS),
     FILE_NAME_UTXO: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_UTXO)
-    }
+}
 
 if not os.path.exists(DIR_OUTPUT_ABSOLUTE):
     os.makedirs(DIR_OUTPUT_ABSOLUTE)
 
 # cache properties
 PROPERTY_NAME_LAST_BLOCK = "last_block"
+PROPERTY_NAME_PRIVATE_KEY = "private_key"
 
 # -----------------------------------------------------------------
 #                             logging
@@ -86,55 +86,40 @@ def decode_transaction_scripts(transactions):
                 scripts_file.write("\n")
                 progress_bar()
 
-# iterate over a set of block transactions, retrieve the transaction data in batches, and process them
-def process_transactions(rpc, utxo_set, txids, block_height, block_hash):
-    for txid in txids:
-        transaction = rpc.getrawtransaction(txid, True, block_hash)
-        for input in transaction["vin"]:
+# interpret a single transaction
+def process_transaction(rpc, txid, block_hash):
+    inputs = set()
+    outputs = set()
+    transaction = rpc.getrawtransaction(txid, True, block_hash)
 
-            # coinbase transactions do not have input txids and cannot already exist in the utxo set
-            if input.get("coinbase"):
-                break
+    for vin in transaction["vin"]:
+        input = TXInput.from_dictionary(vin)
+        if input is not None:
+            inputs.add(input)
 
-            spent_output = TXInput.from_dictionary(input)
-            if spent_output in utxo_set:
-                log.info(f"removing spent output {spent_output}")
-                utxo_set.remove(spent_output)
-            else:
-                log.error(f"spent output not found: {spent_output}")
+    for vout in transaction["vout"]:
+        output = TXOutput.from_dictionary(transaction["txid"], vout)
+        if output is not None:
+            outputs.add(output)
 
-        # add all outputs to utxo set
-        for output in transaction["vout"]:
-            new_output = TXOutput(transaction["txid"], output["n"], block_height, output["value"], output["scriptPubKey"]["hex"])
-            log.info(f"adding new output with id: {new_output}")
-            utxo_set.add(new_output)
+    return inputs, outputs
 
-            try:
-                decoded_script = script.decode_script(new_output.serialized_script)
-                script_type = script.locking_script_type(decoded_script)
-
-                if script_type == script.Type.UNKNOWN:
-                    with open(file_paths[FILE_NAME_UNKNOWN_SCRIPTS], "a", encoding = "utf-8") as unknown_scripts_file:
-                        unknown_scripts_file.write(f"{new_output.serialize()}\n")
-                        unknown_scripts_file.write(f"{decoded_script}\n\n")
-                if script_type == script.Type.ANYONE_CAN_SPEND:
-                    with open(file_paths[FILE_NAME_ANYONE_CAN_PAY], "a", encoding = "utf-8") as anyone_can_pay_scripts_file:
-                        anyone_can_pay_scripts_file.write(f"{new_output.serialize()}\n")
-                        anyone_can_pay_scripts_file.write(f"{decoded_script}\n\n")
-            except script.ScriptDecodingException as err:
-                log.error(f"ScriptDecodingException occurred at block {block_height}\n{new_output}\n{err}")
-                pass
-    return True
-
-def process_block(rpc, utxo_set, block_height):
+# interprets all transactions from a specific block, returns a union of two sets: inputs consumed and outputs created
+# note: as it is possible to consume a new output as an input in the same block, some equiv TXIDs may exist in both sets
+def process_block(rpc, block_height):
     block_hash = rpc.getblockhash(block_height)
     block = rpc.getblock(block_hash)
     txids = block["tx"]
     log.info(f"block {block_height} with hash {block_hash} contains {len(txids)} transactions")
+
+    block_inputs = set()
+    block_outputs = set()
+    for txid in txids:
+        inputs, outputs = process_transaction(rpc, txid, block_hash)
+        block_inputs = block_inputs.union(inputs)
+        block_outputs = block_outputs.union(outputs)
     
-    # TODO: return sets to perform unions and intersections
-    if process_transactions(rpc, utxo_set, txids, block_height, block_hash):
-        return block_height
+    return block_inputs, block_outputs
 
 # -----------------------------------------------------------------
 #                        saving & loading
@@ -149,7 +134,7 @@ def clean_outputs():
             log.error(f"OSError occurred while attempting to delete {file}, {err}")
 
 # writes the current utxo set and other stateful properties to files
-def save(utxo_set, last_block_processed):
+def save(utxo_set, last_block_processed, keyring):
     with DelayedKeyboardInterrupt():
         with open(file_paths[FILE_NAME_UTXO], "w", encoding="utf-8") as utxo_file:
             print(f"saving utxos to file at block {last_block_processed}")
@@ -161,6 +146,7 @@ def save(utxo_set, last_block_processed):
 
         cache = {}
         cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
+        cache[PROPERTY_NAME_PRIVATE_KEY] = keyring.hex()
         with open(file_paths[FILE_NAME_CACHE], "w", encoding="utf-8") as cache_file:
             cache_file.write(json.dumps(cache))
 
@@ -168,6 +154,7 @@ def save(utxo_set, last_block_processed):
 def load():
     utxo_set = set()
     last_block_processed = None
+    keyring = None
 
     if os.path.exists(file_paths[FILE_NAME_UTXO]):
         with open(file_paths[FILE_NAME_UTXO], "r", encoding="utf-8") as utxo_file:
@@ -183,8 +170,9 @@ def load():
         with open(file_paths[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
             cache = json.loads(cache_file.read())
             last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
+            keyring = KeyRing(cache[PROPERTY_NAME_LAST_BLOCK])
         
-    return utxo_set, last_block_processed
+    return utxo_set, last_block_processed, keyring
 
 # -----------------------------------------------------------------
 #                             main
@@ -207,7 +195,7 @@ def evaulate_arguments():
     return options
 
 TESTING = False
-TESTING_HEIGHT = 10000
+TESTING_HEIGHT = 1000
 def get_target_block_height(rpc):
     best_block_hash = rpc.getbestblockhash()
     best_block = rpc.getblock(best_block_hash)
@@ -220,36 +208,78 @@ if __name__ == "__main__":
     if options[OPTION_CLEAN]:
         clean_outputs()
 
-    utxo_set, last_block_processed = load()
+    utxo_set, last_block_processed, keyring = load()
     utxo_set = utxo_set or set()
     last_block_processed = last_block_processed or 0
+    keyring = keyring or KeyRing("1313131313131313131313131313131313131313131313131313131313131313")
     last_save_time = time.time()
     next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
     rpc = RpcController()
+    targets = dict()
     
     running = True
     while running:
-        target_block_height = get_target_block_height(rpc)
+        try:
+            target_block_height = get_target_block_height(rpc)
 
-        while last_block_processed < target_block_height and time.time() < next_save_time:
-            next_block = last_block_processed + 1
-            print(f"reading block {next_block}", end = "\r")
-            try:
-                last_block_processed = process_block(rpc, utxo_set, next_block) or last_block_processed
-            except KeyboardInterrupt:
-                log.info(f"KeyboardInterrupt intercepted at {time.time()}")
-                print(f"Keyboard interrupt received, saving and stopping...")
-                running = False
-                break
+            while last_block_processed < target_block_height and time.time() < next_save_time:
+                current_block = last_block_processed + 1
+                print(f"reading block {current_block}", end = "\r")
             
-        save(utxo_set, last_block_processed)
+                block_inputs, block_outputs = process_block(rpc, current_block)
+
+                # we must add all new outputs to our primary set first, then subtract spent outputs from that set
+                modified_utxo_set = utxo_set.union(block_outputs)
+                modified_utxo_set = modified_utxo_set.difference(block_inputs)
+
+                with DelayedKeyboardInterrupt():
+                    utxo_set = modified_utxo_set
+                    last_block_processed = current_block
+
+            # refresh our targets
+            #if time.time() < next_save_time:
+            targets.clear()
+            for utxo in utxo_set:
+                target = utxo.get_pubkeyhash() or utxo.get_pubkey()
+                if target is not None:
+                    targets[target] = utxo.id()
+
+            count = 0
+            while time.time() < next_save_time:
+                if keyring.public_key_hash() in targets or keyring.public_key() in targets or \
+                    keyring.public_key_hash(False) in targets or keyring.public_key(False) in targets:
+                    
+                    with open(file_paths[FILE_NAME_MATCHES], "a", encoding = "utf-8") as match_file:
+                        text_output = f"match found! {keyring.hex()} with value {keyring.current()}\n"
+                        print(text_output)
+                        match_file.write(text_output)
+
+                        if keyring.public_key_hash() in targets:
+                            text_output = f"{keyring.public_key_hash()} : {targets[keyring.public_key_hash()]}"
+
+                        if keyring.public_key_hash(False) in targets:
+                            text_output = f"{keyring.public_key_hash(False)} : {targets[keyring.public_key_hash(False)]}"
+
+                        if keyring.public_key() in targets:
+                            text_output = f"{keyring.public_key()} : {targets[keyring.public_key()]}"
+
+                        if keyring.public_key(False) in targets:
+                            text_output = f"{keyring.public_key(False)} : {targets[keyring.public_key(False)]}"
+
+                        print(text_output)
+                        match_file.write(text_output)
+
+                keyring.next()
+                count += 1
+                if count % 1000 == 0:
+                    print(f"attempted {count} private keys in this rotation, current: {keyring.current()}")
+
+
+        except KeyboardInterrupt:
+            log.info(f"KeyboardInterrupt intercepted at {time.time()}")
+            print(f"Keyboard interrupt received, saving and stopping...")
+            running = False
+            
+        save(utxo_set, last_block_processed, keyring)
         last_save_time = time.time()
         next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
-
-        # this is here to prevent infinite looping over the save functionality and is temporary.
-        # In the future, we will spend the remaining time trying to generate collisions with
-        # the utxo set and so the loop is designed with that in mind.
-        if last_block_processed >= target_block_height:
-            running = False
-
-    # decode_transaction_scripts(utxo_set)

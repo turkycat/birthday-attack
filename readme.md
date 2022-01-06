@@ -14,19 +14,8 @@ at one point before Christmas 2021, I decided to put a pin in this and no longer
 
 Each todo below will be paired with the rationality of why this is necessary for completeness of this project.
 
-### to generate collisions
-- turn private keys into:
-  - uncompressed public key
-  - compressed public key
-  - public key hash
-  - simple scripts to hash
-
 ### to check apples against apples, oranges against oranges
 - maintain sets of the public key types
-
-### easier and cleaner to update state of all sets after each block is processed
-- allow spent outputs and new outputs to be collected in unique sets, atomic per block.
-- set operations can be used against utxo set and other public key set types
 
 ## setup
 
@@ -61,6 +50,7 @@ or install manually
 ```bash
 pip install python-bitcoinrpc
 pip install alive-progress
+pip install secp256k1
 ```
 
 ## tests
