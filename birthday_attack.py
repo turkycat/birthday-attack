@@ -277,7 +277,7 @@ if __name__ == "__main__":
 
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
-            print(f"Keyboard interrupt received, saving and stopping...")
+            print(f"\nKeyboard interrupt received, saving and stopping...")
             running = False
             
         save(utxo_set, last_block_processed, keyring)
