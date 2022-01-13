@@ -180,7 +180,7 @@ def load():
 #                             main
 # -----------------------------------------------------------------
 
-MINUTES_BETWEEN_SAVES = 20.0
+MINUTES_BETWEEN_SAVES = 60.0
 SECONDS_PER_MINUTE = 60.0
 STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
