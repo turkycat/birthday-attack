@@ -37,7 +37,7 @@ class TXID(object):
     def id(self):
         return self.hash + "," + str(self.index)
 
-SATS_PER_BITCOIN  = 100,000,000
+SATS_PER_BITCOIN  = 100000000
 class TXOutput(TXID):
 
     def __init__(self, hash, index, value_in_sats, serialized_script, script_type):
@@ -97,7 +97,10 @@ class TXOutput(TXID):
 
         hash = str(info[0])
         index = int(info[1])
-        value_in_sats = int(info[2])
+        try:
+            value_in_sats = int(info[2])
+        except ValueError:
+            value_in_sats = int(float(info[2]) * SATS_PER_BITCOIN)
         script = str(info[3])
         type = str(info[4])
         return TXOutput(hash, index, value_in_sats, script, type)
@@ -106,12 +109,14 @@ class TXOutput(TXID):
     def from_dictionary(cls, txid, output_data):
         try:
             index = output_data["n"]
-            value = output_data["value"]
+            value = float(output_data["value"])
             serialized_script = output_data["scriptPubKey"]["hex"]
             script_type = output_data["scriptPubKey"]["type"]
 
             return TXOutput(txid, index, value, serialized_script, script_type)
         except KeyError:
+            pass
+        except ValueError:
             pass
 
         return None
