@@ -100,7 +100,8 @@ def process_transaction(rpc, txid, block_hash):
     for vout in transaction["vout"]:
         output = TXOutput.from_dictionary(transaction["txid"], vout)
         if output is not None:
-            outputs.add(output)
+            if not (output.script_type == "nonstandard" or output.script_type == "nulldata"):
+                outputs.add(output)
 
     return inputs, outputs
 
@@ -163,7 +164,8 @@ def load():
                 for line in utxo_file:
                     output = TXOutput.deserialize(line[:-1]) # remove newline character
                     if output is not None:
-                        utxo_set.add(output)
+                        if not (output.script_type == "nonstandard" or output.script_type == "nulldata"):
+                            utxo_set.add(output)
                     progress_bar()
 
     if os.path.exists(file_paths[FILE_NAME_CACHE]):
