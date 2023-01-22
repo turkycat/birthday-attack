@@ -37,6 +37,9 @@ class TXID(object):
     def id(self):
         return self.hash + "," + str(self.index)
 
+    def make_tuple(self):
+        return (self.hash, self.index)
+
 SATS_PER_BITCOIN  = 100000000
 class TXOutput(TXID):
 
@@ -84,6 +87,10 @@ class TXOutput(TXID):
         if self.script_type == "witness_v0_keyhash":
             if len(decoded_script) > 2 and script.TypeTemplate.PUBLIC_KEY_HASH.match(decoded_script[2]):
                 return decoded_script[2]
+
+    # override TXID.make_tuple
+    def make_tuple(self):
+        return (self.hash, self.index, self.value_in_sats, self.serialized_script, self.script_type)
 
     def serialize(self):
         info = [self.hash, str(self.index), str(self.value_in_sats), self.serialized_script, self.script_type]
