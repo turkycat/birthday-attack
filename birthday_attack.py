@@ -289,10 +289,9 @@ if __name__ == "__main__":
                 # to union each set for each block and perform a single difference before updating the database,
                 # rather than iterating over N outputs for each M inputs for each K blocks = O(N * M * K)
                 # this does mean we will consume more memory between database updates
-                with DelayedKeyboardInterrupt():
-                    inputs.update(block_inputs)
-                    outputs.update(block_outputs)
-                    last_block_processed = current_block
+                inputs.update(block_inputs)
+                outputs.update(block_outputs)
+                last_block_processed = current_block
 
                 
 
@@ -340,28 +339,30 @@ if __name__ == "__main__":
             #         print(f"attempted {count} private keys in this rotation, current: {keyring.current()}")
 
 
+            print("---------------milestone metadata---------------")
+            print("last block processed: ", last_block_processed)
+            print("original size of new outputs: ", len(outputs))
+            print("original size of spent outputs: ", len(inputs))
+
+            spent_outputs = outputs.intersection(inputs)
+            outputs.difference_update(spent_outputs)
+            inputs.difference_update(spent_outputs)
+            print("outputs created and spent in this milestone: ", len(spent_outputs))
+            print("new outputs less spent in this milestone: ", len(outputs))
+            print("spent outputs less spent in this milestone: ", len(inputs))
+            print("-----------------end metadata-------------------")
+
+            with DelayedKeyboardInterrupt():
+                update_utxo_database(db_connection, inputs, outputs)
+                save(last_block_processed, keyring)
+
+            next_save_target = last_block_processed + MILESTONE_BLOCKS
+
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
-            print(f"\nKeyboard interrupt received, saving and stopping...")
+            print(f"\nKeyboard interrupt received, stopping...")
             running = False
-
-        print("----------milestone metadata----------")
-        print("last block processed: ", last_block_processed)
-        print("original size of new outputs: ", len(outputs))
-        print("original size of spent outputs: ", len(inputs))
-
-        spent_outputs = outputs.intersection(inputs)
-        outputs.difference_update(spent_outputs)
-        inputs.difference_update(spent_outputs)
-        print("outputs created and spent in this milestone: ", len(spent_outputs))
-        print("new outputs less spent in this milestone: ", len(outputs))
-        print("spent outputs less spent in this milestone: ", len(inputs))
-        print("-------------end metadata-------------")
-
-        update_utxo_database(db_connection, inputs, outputs)
-        save(last_block_processed, keyring)
-        next_save_target = last_block_processed + MILESTONE_BLOCKS
 
         # TODO JDF - this whole loop needs a rethink because at the end of last year's development I assumed we'd be spending all idle time running the keyring.
         # may need a way to start and stop, maybe consider a Runner class or something to encapsulate the utxo set builder from the keyring stuff, keyring and utxo can extend
-        running = last_block_processed < target_block_height
+        running = running and last_block_processed < target_block_height
