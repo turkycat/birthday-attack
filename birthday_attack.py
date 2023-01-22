@@ -230,23 +230,30 @@ STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
 OPTION_CLEAN = "--clean"
 SHORT_OPTION_CLEAN = "-c"
+OPTION_TARGET = "--target"
+SHORT_OPTION_TARGET = "-t"
 def evaulate_arguments():
     options = {
-        OPTION_CLEAN: False
+        OPTION_CLEAN: False,
+        OPTION_TARGET: 0
     }
 
-    for index in range(1, len(sys.argv)):
+    index = 1
+    while index < len(sys.argv):
         if sys.argv[index] == SHORT_OPTION_CLEAN or sys.argv[index] == OPTION_CLEAN:
             options[OPTION_CLEAN] = True
+        elif (sys.argv[index] == SHORT_OPTION_TARGET or sys.argv[index] == OPTION_TARGET) and index + 1 < len(sys.argv):
+            index = index + 1
+            options[OPTION_TARGET] = int(sys.argv[index])
+
+        index = index + 1
     return options
 
-TESTING = False
-TESTING_HEIGHT = 1000
 def get_target_block_height(rpc):
     best_block_hash = rpc.getbestblockhash()
     best_block = rpc.getblock(best_block_hash)
     best_block_height = int(best_block["height"])
-    target_block_height = (TESTING and TESTING_HEIGHT) or best_block_height - STAY_BEHIND_BEST_BLOCK_OFFSET
+    target_block_height = best_block_height - STAY_BEHIND_BEST_BLOCK_OFFSET
     return target_block_height
 
 if __name__ == "__main__":
@@ -268,7 +275,7 @@ if __name__ == "__main__":
         outputs = set()
         
         try:
-            target_block_height = get_target_block_height(rpc)
+            target_block_height = options[OPTION_TARGET] or get_target_block_height(rpc)
 
             while last_block_processed < target_block_height and time.time() < next_save_time:
                 current_block = last_block_processed + 1
