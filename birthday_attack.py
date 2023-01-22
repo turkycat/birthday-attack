@@ -98,7 +98,7 @@ def process_transaction(rpc, txid, block_hash):
             inputs.add(input)
 
     for vout in transaction["vout"]:
-        output = TXOutput.from_dictionary(transaction["txid"], vout)
+        output = TXOutput.from_dictionary(transaction["txid"], block_hash, vout)
         if output is not None:
             if not (output.script_type == "nonstandard" or output.script_type == "nulldata"):
                 outputs.add(output)
@@ -196,10 +196,11 @@ def ensure_default_table(db_connection):
     CREATE TABLE IF NOT EXISTS utxos (
         hash TEXT NOT NULL,
         idx INTEGER NOT NULL,
+        block_hash TEXT NOT NULL,
         value INTEGER,
         script TEXT,
         type TEXT,
-        PRIMARY KEY (hash, idx)
+        PRIMARY KEY (hash, idx, block_hash)
     );
     """
     execute_query(db_connection, create_table_query)
@@ -213,7 +214,7 @@ def update_utxo_database(db_connection, inputs, outputs):
     cursor = db_connection.cursor()
     try:
         cursor.executemany("DELETE FROM utxos WHERE hash = ? AND idx = ?", [input.make_tuple() for input in inputs])
-        cursor.executemany("INSERT INTO utxos VALUES (?,?,?,?,?)", [output.make_tuple() for output in outputs])
+        cursor.executemany("INSERT INTO utxos VALUES (?,?,?,?,?,?)", [output.make_tuple() for output in outputs])
         db_connection.commit()
     except sqlite3.Error as e:
         log.error(f"database error '{e}' occurred")
