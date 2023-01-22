@@ -224,8 +224,7 @@ def update_utxo_database(db_connection, inputs, outputs):
 #                             main
 # -----------------------------------------------------------------
 
-MINUTES_BETWEEN_SAVES = 60.0
-SECONDS_PER_MINUTE = 60.0
+MILESTONE_BLOCKS = 100
 STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
 OPTION_CLEAN = "--clean"
@@ -263,9 +262,8 @@ if __name__ == "__main__":
 
     last_block_processed, keyring = load()
     last_block_processed = last_block_processed or 0
+    next_save_target = last_block_processed + MILESTONE_BLOCKS
     keyring = keyring or KeyRing("1313131313131313131313131313131313131313131313131313131313131313")
-    last_save_time = time.time()
-    next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
     rpc = RpcController()
     db_connection = ensure_database()
     
@@ -273,11 +271,11 @@ if __name__ == "__main__":
     while running:
         inputs = set()
         outputs = set()
-        
+
         try:
             target_block_height = options[OPTION_TARGET] or get_target_block_height(rpc)
 
-            while last_block_processed < target_block_height and time.time() < next_save_time:
+            while last_block_processed < target_block_height and last_block_processed < next_save_target:
                 current_block = last_block_processed + 1
                 print(f"reading block {current_block}", end = "\r")
             
@@ -360,11 +358,9 @@ if __name__ == "__main__":
         print("-------------end metadata-------------")
 
         update_utxo_database(db_connection, inputs, outputs)
-            
         save(last_block_processed, keyring)
-        last_save_time = time.time()
-        next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
+        next_save_target = last_block_processed + MILESTONE_BLOCKS
 
         # TODO JDF - this whole loop needs a rethink because at the end of last year's development I assumed we'd be spending all idle time running the keyring.
         # may need a way to start and stop, maybe consider a Runner class or something to encapsulate the utxo set builder from the keyring stuff, keyring and utxo can extend
-        running = False
+        running = last_block_processed < target_block_height
