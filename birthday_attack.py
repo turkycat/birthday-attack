@@ -152,7 +152,7 @@ def load():
         with open(file_paths[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
             cache = json.loads(cache_file.read())
             last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
-            keyring = KeyRing(cache[PROPERTY_NAME_LAST_BLOCK])
+            keyring = KeyRing(cache[PROPERTY_NAME_PRIVATE_KEY])
         
     return last_block_processed, keyring
 
@@ -225,7 +225,10 @@ def update_utxo_database(db_connection, inputs, outputs):
 #                             main
 # -----------------------------------------------------------------
 
-MILESTONE_BLOCKS = 100
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = 3600
+
+BLOCKS_PER_MILESTONE = 100
 STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
 OPTION_CLEAN = "--clean"
@@ -263,20 +266,22 @@ if __name__ == "__main__":
 
     last_block_processed, keyring = load()
     last_block_processed = last_block_processed or 0
-    next_save_target = last_block_processed + MILESTONE_BLOCKS
     keyring = keyring or KeyRing("1313131313131313131313131313131313131313131313131313131313131313")
     rpc = RpcController()
     db_connection = ensure_database()
     
     running = True
     while running:
+        milestone_start_time = time.time()
+        milestone_target = last_block_processed + BLOCKS_PER_MILESTONE
         inputs = set()
         outputs = set()
 
         try:
             target_block_height = options[OPTION_TARGET] or get_target_block_height(rpc)
+            current_target = min(target_block_height, milestone_target)
 
-            while last_block_processed < target_block_height and last_block_processed < next_save_target:
+            while last_block_processed < current_target:
                 current_block = last_block_processed + 1
                 print(f"reading block {current_block}", end = "\r")
             
@@ -339,24 +344,27 @@ if __name__ == "__main__":
             #         print(f"attempted {count} private keys in this rotation, current: {keyring.current()}")
 
 
-            print("---------------milestone metadata---------------")
+            print("-------------------milestone metadata-------------------")
             print("last block processed: ", last_block_processed)
             print("original size of new outputs: ", len(outputs))
             print("original size of spent outputs: ", len(inputs))
-
             spent_outputs = outputs.intersection(inputs)
             outputs.difference_update(spent_outputs)
             inputs.difference_update(spent_outputs)
             print("outputs created and spent in this milestone: ", len(spent_outputs))
             print("new outputs less spent in this milestone: ", len(outputs))
             print("spent outputs less spent in this milestone: ", len(inputs))
-            print("-----------------end metadata-------------------")
+            seconds = time.time() - milestone_start_time
+            hours = int(seconds / SECONDS_PER_HOUR)
+            seconds = seconds % SECONDS_PER_HOUR
+            minutes = int(seconds / SECONDS_PER_MINUTE)
+            seconds = int(seconds % SECONDS_PER_MINUTE)
+            print(f"time to process: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)");
+            print("---------------------end metadata-----------------------")
 
             with DelayedKeyboardInterrupt():
                 update_utxo_database(db_connection, inputs, outputs)
                 save(last_block_processed, keyring)
-
-            next_save_target = last_block_processed + MILESTONE_BLOCKS
 
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
