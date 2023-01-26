@@ -219,16 +219,35 @@ def update_utxo_database(db_connection, inputs, outputs):
     except sqlite3.Error as e:
         log.error(f"database error '{e}' occurred")
         raise e
-    
+
+def vacuum_database(db_connection):
+    try:
+        db_connection.execute("VACUUM")
+    except sqlite3.Error as e:
+        log.error(f"database error '{e}' occurred")
+        raise e
+
 
 # -----------------------------------------------------------------
-#                             main
+#                            utility
 # -----------------------------------------------------------------
 
 SECONDS_PER_MINUTE = 60
 SECONDS_PER_HOUR = 3600
 
+def seconds_to_hms(seconds):
+    hours = int(seconds / SECONDS_PER_HOUR)
+    seconds = seconds % SECONDS_PER_HOUR
+    minutes = int(seconds / SECONDS_PER_MINUTE)
+    seconds = int(seconds % SECONDS_PER_MINUTE)
+    return hours, minutes, seconds
+
+# -----------------------------------------------------------------
+#                             main
+# -----------------------------------------------------------------
+
 BLOCKS_PER_MILESTONE = 100
+BLOCKS_PER_VACUUM = BLOCKS_PER_MILESTONE * 100
 STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
 OPTION_CLEAN = "--clean"
@@ -269,6 +288,10 @@ if __name__ == "__main__":
     keyring = keyring or KeyRing("1313131313131313131313131313131313131313131313131313131313131313")
     rpc = RpcController()
     db_connection = ensure_database()
+
+    total_milestone_time = 0
+    total_update_time = 0
+    total_vacuum_time = 0
     
     running = True
     while running:
@@ -354,17 +377,39 @@ if __name__ == "__main__":
             print("outputs created and spent in this milestone: ", len(spent_outputs))
             print("new outputs less spent in this milestone: ", len(outputs))
             print("spent outputs less spent in this milestone: ", len(inputs))
-            seconds = time.time() - milestone_start_time
-            hours = int(seconds / SECONDS_PER_HOUR)
-            seconds = seconds % SECONDS_PER_HOUR
-            minutes = int(seconds / SECONDS_PER_MINUTE)
-            seconds = int(seconds % SECONDS_PER_MINUTE)
-            print(f"time to process: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)");
+            milestone_end_time = time.time()
+            milestone_time = milestone_end_time - milestone_start_time
+            total_milestone_time = total_milestone_time + milestone_time
+            hours, minutes, seconds = seconds_to_hms(milestone_time)
+            print(f"time to process: {minutes} minute(s), and {seconds} second(s)")
             print("---------------------end metadata-----------------------")
 
+            print("updating database...")
             with DelayedKeyboardInterrupt():
                 update_utxo_database(db_connection, inputs, outputs)
                 save(last_block_processed, keyring)
+
+                update_end_time = time.time()
+                update_time = update_end_time - milestone_end_time
+                total_update_time = total_update_time + update_time
+                hours, minutes, seconds = seconds_to_hms(update_time)
+                print(f"time to write to disk: {minutes} minute(s), and {seconds} second(s)")
+
+                # vacuum every 10 milestones
+                if (last_block_processed % BLOCKS_PER_VACUUM == 0):
+                    print("vacuuming database...")
+                    vacuum_database(db_connection)
+                    vacuum_time = time.time() - update_end_time
+                    total_vacuum_time = total_vacuum_time + vacuum_time
+                    hours, minutes, seconds = seconds_to_hms(vacuum_time)
+                    print(f"time to vacuum: {minutes} minute(s), and {seconds} second(s)")
+                    hours, minutes, seconds = seconds_to_hms(total_milestone_time)
+                    print(f"total time spent processing: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+                    hours, minutes, seconds = seconds_to_hms(total_update_time)
+                    print(f"total time writing to disk: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+                    hours, minutes, seconds = seconds_to_hms(total_vacuum_time)
+                    print(f"total time vacuuming: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+            
 
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
