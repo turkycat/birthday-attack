@@ -4,7 +4,6 @@ from transactions import script
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
 from keys.ring import KeyRing
-#from alive_progress import alive_bar
 
 # -----------------------------------------------------------------
 #                             globals
