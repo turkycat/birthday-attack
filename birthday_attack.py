@@ -200,10 +200,16 @@ def ensure_default_table(db_connection):
         value INTEGER,
         script TEXT,
         type TEXT,
+        target TEXT,
         PRIMARY KEY (hash, idx, block_hash)
     );
     """
     execute_query(db_connection, create_table_query)
+    
+    create_index_query = """
+    CREATE INDEX IF NOT EXISTS target_index ON utxos (target);
+    """
+    execute_query(db_connection, create_index_query)
 
 def ensure_database():
     db_connection = open_database(file_paths[FILE_NAME_DATABASE])
@@ -214,7 +220,7 @@ def update_utxo_database(db_connection, inputs, outputs):
     cursor = db_connection.cursor()
     try:
         cursor.executemany("DELETE FROM utxos WHERE hash = ? AND idx = ?", [input.make_tuple() for input in inputs])
-        cursor.executemany("INSERT INTO utxos VALUES (?,?,?,?,?,?)", [output.make_tuple() for output in outputs])
+        cursor.executemany("INSERT INTO utxos VALUES (?,?,?,?,?,?,?)", [output.make_tuple() for output in outputs])
         db_connection.commit()
     except sqlite3.Error as e:
         log.error(f"database error '{e}' occurred")
@@ -419,3 +425,5 @@ if __name__ == "__main__":
         # TODO JDF - this whole loop needs a rethink because at the end of last year's development I assumed we'd be spending all idle time running the keyring.
         # may need a way to start and stop, maybe consider a Runner class or something to encapsulate the utxo set builder from the keyring stuff, keyring and utxo can extend
         running = running and last_block_processed < target_block_height
+
+    db_connection.close()
