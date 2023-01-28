@@ -41,7 +41,7 @@ class KeyRing(object):
         return self.__private_key.pubkey.serialize(compressed).hex()
 
     def public_key_hash(self, compressed = True):
-        serialized_pubkey = self.__private_key.pubkey.serialize(compressed)
+        serialized_pubkey = self.__private_key.pubkey.serialize(compressed) # type is bytes
         return hashlib.new("ripemd160", hashlib.sha256(serialized_pubkey).digest()).hexdigest()
 
     def hex(self):

@@ -61,8 +61,8 @@ each row contains a single utxo.
 | column | type | description | 
 |--------|------|-------------|
 |hash|text|transaction hash for the output|
-|idx|integer|index for the output
-|block_hash|text|block hash containing this transaction
+|vout|integer|index for the output
+|height|integer|block height containing this transaction
 |amount|integer|value of this output, in sats
 |script|text|the full scriptPubKey that 'locks' this transaction
 |type|text|the type as described by bitcoin core. IE- 'pubkeyhash', 'multisig', 'witness_v0_keyhash' etc

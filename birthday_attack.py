@@ -4,6 +4,7 @@ from transactions import script
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
 from keys.ring import KeyRing
+from database.database_controller import DatabaseController
 
 # -----------------------------------------------------------------
 #                             globals
@@ -86,7 +87,7 @@ def decode_transaction_scripts(transactions):
                 progress_bar()
 
 # interpret a single transaction
-def process_transaction(rpc, txid, block_hash):
+def process_transaction(rpc, txid, block_height, block_hash):
     inputs = set()
     outputs = set()
     transaction = rpc.getrawtransaction(txid, True, block_hash)
@@ -97,7 +98,7 @@ def process_transaction(rpc, txid, block_hash):
             inputs.add(input)
 
     for vout in transaction["vout"]:
-        output = TXOutput.from_dictionary(transaction["txid"], block_hash, vout)
+        output = TXOutput.from_dictionary(transaction["txid"], block_height, vout)
         if output is not None:
             if not (output.script_type == "nonstandard" or output.script_type == "nulldata"):
                 outputs.add(output)
@@ -115,7 +116,7 @@ def process_block(rpc, block_height):
     block_inputs = set()
     block_outputs = set()
     for txid in txids:
-        inputs, outputs = process_transaction(rpc, txid, block_hash)
+        inputs, outputs = process_transaction(rpc, txid, block_height, block_hash)
         block_inputs = block_inputs.union(inputs)
         block_outputs = block_outputs.union(outputs)
     
@@ -156,84 +157,6 @@ def load():
     return last_block_processed, keyring
 
 # -----------------------------------------------------------------
-#                     database management
-# -----------------------------------------------------------------
-
-def open_database(path):
-    db_connection = None
-    try:
-        db_connection = sqlite3.connect(path)
-    except sqlite3.Error as e:
-        log.error(f"database error '{e}' occurred")
-        raise e
-
-    return db_connection
-
-def execute_query(db_connection, query):
-    cursor = db_connection.cursor()
-    try:
-        cursor.execute(query)
-        db_connection.commit()
-    except sqlite3.Error as e:
-        log.error(f"database error '{e}' occurred")
-        raise e
-
-def execute_read_query(db_connection, query):
-    cursor = db_connection.cursor()
-    result = None
-    try:
-        cursor.execute(query)
-        result = cursor.fetchall()
-        return result
-    except sqlite3.Error as e:
-        log.error(f"database error '{e}' occurred")
-        raise e
-
-
-def ensure_default_table(db_connection):
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS utxos (
-        hash TEXT NOT NULL,
-        idx INTEGER NOT NULL,
-        block_hash TEXT NOT NULL,
-        value INTEGER,
-        script TEXT,
-        type TEXT,
-        target TEXT,
-        PRIMARY KEY (hash, idx, block_hash)
-    );
-    """
-    execute_query(db_connection, create_table_query)
-    
-    create_index_query = """
-    CREATE INDEX IF NOT EXISTS target_index ON utxos (target);
-    """
-    execute_query(db_connection, create_index_query)
-
-def ensure_database():
-    db_connection = open_database(file_paths[FILE_NAME_DATABASE])
-    ensure_default_table(db_connection)
-    return db_connection
-
-def update_utxo_database(db_connection, inputs, outputs):
-    cursor = db_connection.cursor()
-    try:
-        cursor.executemany("DELETE FROM utxos WHERE hash = ? AND idx = ?", [input.make_tuple() for input in inputs])
-        cursor.executemany("INSERT INTO utxos VALUES (?,?,?,?,?,?,?)", [output.make_tuple() for output in outputs])
-        db_connection.commit()
-    except sqlite3.Error as e:
-        log.error(f"database error '{e}' occurred")
-        raise e
-
-def vacuum_database(db_connection):
-    try:
-        db_connection.execute("VACUUM")
-    except sqlite3.Error as e:
-        log.error(f"database error '{e}' occurred")
-        raise e
-
-
-# -----------------------------------------------------------------
 #                            utility
 # -----------------------------------------------------------------
 
@@ -246,14 +169,6 @@ def seconds_to_hms(seconds):
     minutes = int(seconds / SECONDS_PER_MINUTE)
     seconds = int(seconds % SECONDS_PER_MINUTE)
     return hours, minutes, seconds
-
-# -----------------------------------------------------------------
-#                             main
-# -----------------------------------------------------------------
-
-BLOCKS_PER_MILESTONE = 100
-BLOCKS_PER_VACUUM = BLOCKS_PER_MILESTONE * 100
-STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 
 OPTION_CLEAN = "--clean"
 SHORT_OPTION_CLEAN = "-c"
@@ -276,12 +191,21 @@ def evaulate_arguments():
         index = index + 1
     return options
 
+STAY_BEHIND_BEST_BLOCK_OFFSET = 6
 def get_target_block_height(rpc):
     best_block_hash = rpc.getbestblockhash()
     best_block = rpc.getblock(best_block_hash)
     best_block_height = int(best_block["height"])
     target_block_height = best_block_height - STAY_BEHIND_BEST_BLOCK_OFFSET
     return target_block_height
+
+
+# -----------------------------------------------------------------
+#                             main
+# -----------------------------------------------------------------
+
+BLOCKS_PER_MILESTONE = 100
+BLOCKS_PER_VACUUM = BLOCKS_PER_MILESTONE * 100
 
 if __name__ == "__main__":
     options = evaulate_arguments()
@@ -292,7 +216,7 @@ if __name__ == "__main__":
     last_block_processed = last_block_processed or 0
     keyring = keyring or KeyRing("1313131313131313131313131313131313131313131313131313131313131313")
     rpc = RpcController()
-    db_connection = ensure_database()
+    db = DatabaseController(file_paths[FILE_NAME_DATABASE])
 
     total_milestone_time = 0
     total_update_time = 0
@@ -391,7 +315,7 @@ if __name__ == "__main__":
 
             print("updating database...")
             with DelayedKeyboardInterrupt():
-                update_utxo_database(db_connection, inputs, outputs)
+                db.update_utxos(inputs, outputs)
                 save(last_block_processed, keyring)
 
                 update_end_time = time.time()
@@ -403,7 +327,7 @@ if __name__ == "__main__":
                 # vacuum every 10 milestones
                 if (last_block_processed % BLOCKS_PER_VACUUM == 0):
                     print("vacuuming database...")
-                    vacuum_database(db_connection)
+                    db.vacuum()
                     vacuum_time = time.time() - update_end_time
                     total_vacuum_time = total_vacuum_time + vacuum_time
                     hours, minutes, seconds = seconds_to_hms(vacuum_time)
@@ -424,5 +348,3 @@ if __name__ == "__main__":
         # TODO JDF - this whole loop needs a rethink because at the end of last year's development I assumed we'd be spending all idle time running the keyring.
         # may need a way to start and stop, maybe consider a Runner class or something to encapsulate the utxo set builder from the keyring stuff, keyring and utxo can extend
         running = running and last_block_processed < target_block_height
-
-    db_connection.close()

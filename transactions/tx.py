@@ -43,9 +43,9 @@ class TXID(object):
 SATS_PER_BITCOIN  = 100000000
 class TXOutput(TXID):
 
-    def __init__(self, hash, index, block_hash, value_in_sats, serialized_script, script_type, target = None):
+    def __init__(self, hash, index, height, value_in_sats, serialized_script, script_type, target = None):
         super().__init__(hash, index)
-        self.block_hash = block_hash
+        self.height = height
         self.serialized_script = serialized_script
         self.script_type = script_type
 
@@ -61,10 +61,10 @@ class TXOutput(TXID):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXOutput object: {self.hash}, {self.index}, {self.block_hash}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}, {self.target}>>"
+        return f"<<TXOutput object: {self.hash}, {self.index}, {self.height}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}, {self.target}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.block_hash}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}, {self.target})"
+        return f"TXOutput({self.hash}, {self.index}, {self.height}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}, {self.target})"
 
     def get_pubkey(self):
         if self.script_type != "pubkey" or self.serialized_script is None:
@@ -95,10 +95,10 @@ class TXOutput(TXID):
 
     # override TXID.make_tuple
     def make_tuple(self):
-        return (self.hash, self.index, self.block_hash, self.value_in_sats, self.serialized_script, self.script_type, self.target)
+        return (self.hash, self.index, self.height, self.value_in_sats, self.serialized_script, self.script_type, self.target)
 
     def serialize(self):
-        info = [self.hash, str(self.index), self.block_hash, str(self.value_in_sats), self.serialized_script, self.script_type]
+        info = [self.hash, str(self.index), str(self.height), str(self.value_in_sats), self.serialized_script, self.script_type]
         if self.target is not None:
             info.append(self.target)
         return ",".join(info)
@@ -125,7 +125,7 @@ class TXOutput(TXID):
 
         hash = str(info[0])
         index = int(info[1])
-        block_hash = str(info[2])
+        height = int(info[2])
         try:
             value_in_sats = int(info[3])
         except ValueError:
@@ -134,11 +134,11 @@ class TXOutput(TXID):
         script_type = str(info[5])
         target = None
         if len(info) == 7:
-            target = str(info(6))
-        return TXOutput(hash, index, block_hash, value_in_sats, script, script_type, target)
+            target = str(info[6])
+        return TXOutput(hash, index, height, value_in_sats, script, script_type, target)
 
     @classmethod
-    def from_dictionary(cls, txid, block_hash, output_data):
+    def from_dictionary(cls, txid, height, output_data):
         try:
             index = output_data["n"]
             value = float(output_data["value"])
@@ -146,7 +146,7 @@ class TXOutput(TXID):
             script_type = output_data["scriptPubKey"]["type"]
             target = TXOutput.parse_target(script_type, serialized_script)
 
-            return TXOutput(txid, index, block_hash, value, serialized_script, script_type, target)
+            return TXOutput(txid, index, height, value, serialized_script, script_type, target)
         except KeyError:
             pass
         except ValueError:
