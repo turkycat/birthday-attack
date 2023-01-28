@@ -1,10 +1,10 @@
-import sys, os, glob, logging, time, json
+import sys, os, glob, logging, time, json, sqlite3
 from transactions.tx import TXOutput, TXInput
 from transactions import script
 from delayed_keyboard_interrupt import DelayedKeyboardInterrupt
 from rpc_controller.rpc_controller import RpcController
 from keys.ring import KeyRing
-from alive_progress import alive_bar
+from database.database_controller import DatabaseController
 
 # -----------------------------------------------------------------
 #                             globals
@@ -16,7 +16,7 @@ FILE_NAME_ERROR = "errors.txt"
 FILE_NAME_LOG = "logfile.txt"
 FILE_NAME_SCRIPTS = "scripts.txt"
 FILE_NAME_MATCHES = "matches.txt"
-FILE_NAME_UTXO = "utxos.txt"
+FILE_NAME_DATABASE = "db.sqlite"
 
 DIR_OUTPUT_RELATIVE = "output"
 DIR_OUTPUT_ABSOLUTE = os.path.join(os.getcwd(), DIR_OUTPUT_RELATIVE)
@@ -26,7 +26,7 @@ file_paths = {
     FILE_NAME_LOG: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_LOG),
     FILE_NAME_MATCHES: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_MATCHES),
     FILE_NAME_SCRIPTS: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_SCRIPTS),
-    FILE_NAME_UTXO: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_UTXO)
+    FILE_NAME_DATABASE: os.path.join(DIR_OUTPUT_ABSOLUTE, FILE_NAME_DATABASE)
 }
 
 if not os.path.exists(DIR_OUTPUT_ABSOLUTE):
@@ -87,7 +87,7 @@ def decode_transaction_scripts(transactions):
                 progress_bar()
 
 # interpret a single transaction
-def process_transaction(rpc, txid, block_hash):
+def process_transaction(rpc, txid, block_height, block_hash):
     inputs = set()
     outputs = set()
     transaction = rpc.getrawtransaction(txid, True, block_hash)
@@ -98,7 +98,7 @@ def process_transaction(rpc, txid, block_hash):
             inputs.add(input)
 
     for vout in transaction["vout"]:
-        output = TXOutput.from_dictionary(transaction["txid"], vout)
+        output = TXOutput.from_dictionary(transaction["txid"], block_height, vout)
         if output is not None:
             if not (output.script_type == "nonstandard" or output.script_type == "nulldata"):
                 outputs.add(output)
@@ -116,7 +116,7 @@ def process_block(rpc, block_height):
     block_inputs = set()
     block_outputs = set()
     for txid in txids:
-        inputs, outputs = process_transaction(rpc, txid, block_hash)
+        inputs, outputs = process_transaction(rpc, txid, block_height, block_hash)
         block_inputs = block_inputs.union(inputs)
         block_outputs = block_outputs.union(outputs)
     
@@ -135,16 +135,8 @@ def clean_outputs():
             log.error(f"OSError occurred while attempting to delete {file}, {err}")
 
 # writes the current utxo set and other stateful properties to files
-def save(utxo_set, last_block_processed, keyring):
+def save(last_block_processed, keyring):
     with DelayedKeyboardInterrupt():
-        with open(file_paths[FILE_NAME_UTXO], "w", encoding="utf-8") as utxo_file:
-            print(f"saving utxos to file at block {last_block_processed}")
-            with alive_bar(len(utxo_set)) as progress_bar:
-                for output in utxo_set:
-                    data = output.serialize()
-                    utxo_file.write(f"{data}\n")
-                    progress_bar()
-
         cache = {}
         cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
         cache[PROPERTY_NAME_PRIVATE_KEY] = keyring.hex()
@@ -153,135 +145,206 @@ def save(utxo_set, last_block_processed, keyring):
 
 # loads the utxo set and other stateful properties from files
 def load():
-    utxo_set = set()
     last_block_processed = None
     keyring = None
-
-    if os.path.exists(file_paths[FILE_NAME_UTXO]):
-        with open(file_paths[FILE_NAME_UTXO], "r", encoding="utf-8") as utxo_file:
-            print("loading UTXOs from file")
-            with alive_bar() as progress_bar:
-                for line in utxo_file:
-                    output = TXOutput.deserialize(line[:-1]) # remove newline character
-                    if output is not None:
-                        if not (output.script_type == "nonstandard" or output.script_type == "nulldata"):
-                            utxo_set.add(output)
-                    progress_bar()
 
     if os.path.exists(file_paths[FILE_NAME_CACHE]):
         with open(file_paths[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
             cache = json.loads(cache_file.read())
             last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
-            keyring = KeyRing(cache[PROPERTY_NAME_LAST_BLOCK])
+            keyring = KeyRing(cache[PROPERTY_NAME_PRIVATE_KEY])
         
-    return utxo_set, last_block_processed, keyring
+    return last_block_processed, keyring
+
+# -----------------------------------------------------------------
+#                            utility
+# -----------------------------------------------------------------
+
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = 3600
+
+def seconds_to_hms(seconds):
+    hours = int(seconds / SECONDS_PER_HOUR)
+    seconds = seconds % SECONDS_PER_HOUR
+    minutes = int(seconds / SECONDS_PER_MINUTE)
+    seconds = int(seconds % SECONDS_PER_MINUTE)
+    return hours, minutes, seconds
+
+OPTION_CLEAN = "--clean"
+SHORT_OPTION_CLEAN = "-c"
+OPTION_TARGET = "--target"
+SHORT_OPTION_TARGET = "-t"
+def evaulate_arguments():
+    options = {
+        OPTION_CLEAN: False,
+        OPTION_TARGET: 0
+    }
+
+    index = 1
+    while index < len(sys.argv):
+        if sys.argv[index] == SHORT_OPTION_CLEAN or sys.argv[index] == OPTION_CLEAN:
+            options[OPTION_CLEAN] = True
+        elif (sys.argv[index] == SHORT_OPTION_TARGET or sys.argv[index] == OPTION_TARGET) and index + 1 < len(sys.argv):
+            index = index + 1
+            options[OPTION_TARGET] = int(sys.argv[index])
+
+        index = index + 1
+    return options
+
+STAY_BEHIND_BEST_BLOCK_OFFSET = 6
+def get_target_block_height(rpc):
+    best_block_hash = rpc.getbestblockhash()
+    best_block = rpc.getblock(best_block_hash)
+    best_block_height = int(best_block["height"])
+    target_block_height = best_block_height - STAY_BEHIND_BEST_BLOCK_OFFSET
+    return target_block_height
+
 
 # -----------------------------------------------------------------
 #                             main
 # -----------------------------------------------------------------
 
-MINUTES_BETWEEN_SAVES = 60.0
-SECONDS_PER_MINUTE = 60.0
-STAY_BEHIND_BEST_BLOCK_OFFSET = 6
-
-OPTION_CLEAN = "--clean"
-SHORT_OPTION_CLEAN = "-c"
-def evaulate_arguments():
-    options = {
-        OPTION_CLEAN: False
-    }
-
-    for index in range(1, len(sys.argv)):
-        if sys.argv[index] == SHORT_OPTION_CLEAN or sys.argv[index] == OPTION_CLEAN:
-            options[OPTION_CLEAN] = True
-    return options
-
-TESTING = False
-TESTING_HEIGHT = 1000
-def get_target_block_height(rpc):
-    best_block_hash = rpc.getbestblockhash()
-    best_block = rpc.getblock(best_block_hash)
-    best_block_height = int(best_block["height"])
-    target_block_height = (TESTING and TESTING_HEIGHT) or best_block_height - STAY_BEHIND_BEST_BLOCK_OFFSET
-    return target_block_height
+BLOCKS_PER_MILESTONE = 100
+BLOCKS_PER_VACUUM = BLOCKS_PER_MILESTONE * 100
 
 if __name__ == "__main__":
     options = evaulate_arguments()
     if options[OPTION_CLEAN]:
         clean_outputs()
 
-    utxo_set, last_block_processed, keyring = load()
-    utxo_set = utxo_set or set()
+    last_block_processed, keyring = load()
     last_block_processed = last_block_processed or 0
     keyring = keyring or KeyRing("1313131313131313131313131313131313131313131313131313131313131313")
-    last_save_time = time.time()
-    next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
     rpc = RpcController()
-    targets = dict()
+    db = DatabaseController(file_paths[FILE_NAME_DATABASE])
+
+    total_milestone_time = 0
+    total_update_time = 0
+    total_vacuum_time = 0
     
     running = True
     while running:
-        try:
-            target_block_height = get_target_block_height(rpc)
+        milestone_start_time = time.time()
+        milestone_target = last_block_processed + BLOCKS_PER_MILESTONE
+        inputs = set()
+        outputs = set()
 
-            while last_block_processed < target_block_height and time.time() < next_save_time:
+        try:
+            target_block_height = options[OPTION_TARGET] or get_target_block_height(rpc)
+            current_target = min(target_block_height, milestone_target)
+
+            while last_block_processed < current_target:
                 current_block = last_block_processed + 1
                 print(f"reading block {current_block}", end = "\r")
             
                 block_inputs, block_outputs = process_block(rpc, current_block)
 
-                # we must add all new outputs to our primary set first, then subtract spent outputs from that set
-                modified_utxo_set = utxo_set.union(block_outputs)
-                modified_utxo_set = modified_utxo_set.difference(block_inputs)
+                # inputs are outputs that have been consumed.
+                # the input set will consume outputs that exist in the database only (after first INSERT)
+                # but may also consume outputs currently included in the output set, which we can discard.
+                # without bringing back the nightmares of discrete math, I'm certain that it's more efficient 
+                # to union each set for each block and perform a single difference before updating the database,
+                # rather than iterating over N outputs for each M inputs for each K blocks = O(N * M * K)
+                # this does mean we will consume more memory between database updates
+                inputs.update(block_inputs)
+                outputs.update(block_outputs)
+                last_block_processed = current_block
 
-                with DelayedKeyboardInterrupt():
-                    utxo_set = modified_utxo_set
-                    last_block_processed = current_block
+                
+
+                # we must add all new outputs to our primary set first, then subtract spent outputs from that set
+                #modified_utxo_set = utxo_set.union(block_outputs)
+                #modified_utxo_set = modified_utxo_set.difference(block_inputs)
+
 
             # refresh our targets
             #if time.time() < next_save_time:
-            targets.clear()
-            for utxo in utxo_set:
-                target = utxo.get_pubkeyhash() or utxo.get_pubkey()
-                if target is not None:
-                    targets[target] = utxo.id()
+            # targets.clear()
+            # for utxo in utxo_set:
+            #     target = utxo.get_pubkeyhash() or utxo.get_pubkey()
+            #     if target is not None:
+            #         targets[target] = utxo.id()
 
-            count = 0
-            while time.time() < next_save_time:
-                if keyring.public_key_hash() in targets or keyring.public_key() in targets or \
-                    keyring.public_key_hash(False) in targets or keyring.public_key(False) in targets:
+            # count = 0
+            # while time.time() < next_save_time:
+            #     if keyring.public_key_hash() in targets or keyring.public_key() in targets or \
+            #         keyring.public_key_hash(False) in targets or keyring.public_key(False) in targets:
                     
-                    with open(file_paths[FILE_NAME_MATCHES], "a", encoding = "utf-8") as match_file:
-                        text_output = f"match found! {keyring.hex()} with value {keyring.current()}\n"
-                        print(text_output)
-                        match_file.write(text_output)
+            #         with open(file_paths[FILE_NAME_MATCHES], "a", encoding = "utf-8") as match_file:
+            #             text_output = f"match found! {keyring.hex()} with value {keyring.current()}\n"
+            #             print(text_output)
+            #             match_file.write(text_output)
 
-                        if keyring.public_key_hash() in targets:
-                            text_output = f"{keyring.public_key_hash()} : {targets[keyring.public_key_hash()]}"
+            #             if keyring.public_key_hash() in targets:
+            #                 text_output = f"{keyring.public_key_hash()} : {targets[keyring.public_key_hash()]}"
 
-                        if keyring.public_key_hash(False) in targets:
-                            text_output = f"{keyring.public_key_hash(False)} : {targets[keyring.public_key_hash(False)]}"
+            #             if keyring.public_key_hash(False) in targets:
+            #                 text_output = f"{keyring.public_key_hash(False)} : {targets[keyring.public_key_hash(False)]}"
 
-                        if keyring.public_key() in targets:
-                            text_output = f"{keyring.public_key()} : {targets[keyring.public_key()]}"
+            #             if keyring.public_key() in targets:
+            #                 text_output = f"{keyring.public_key()} : {targets[keyring.public_key()]}"
 
-                        if keyring.public_key(False) in targets:
-                            text_output = f"{keyring.public_key(False)} : {targets[keyring.public_key(False)]}"
+            #             if keyring.public_key(False) in targets:
+            #                 text_output = f"{keyring.public_key(False)} : {targets[keyring.public_key(False)]}"
 
-                        print(text_output)
-                        match_file.write(text_output)
+            #             print(text_output)
+            #             match_file.write(text_output)
 
-                keyring.next()
-                count += 1
-                if count % 1000 == 0:
-                    print(f"attempted {count} private keys in this rotation, current: {keyring.current()}")
+            #     keyring.next()
+            #     count += 1
+            #     if count % 1000 == 0:
+            #         print(f"attempted {count} private keys in this rotation, current: {keyring.current()}")
 
+
+            print("-------------------milestone metadata-------------------")
+            print("last block processed: ", last_block_processed)
+            print("original size of new outputs: ", len(outputs))
+            print("original size of spent outputs: ", len(inputs))
+            spent_outputs = outputs.intersection(inputs)
+            outputs.difference_update(spent_outputs)
+            inputs.difference_update(spent_outputs)
+            print("outputs created and spent in this milestone: ", len(spent_outputs))
+            print("new outputs less spent in this milestone: ", len(outputs))
+            print("spent outputs less spent in this milestone: ", len(inputs))
+            milestone_end_time = time.time()
+            milestone_time = milestone_end_time - milestone_start_time
+            total_milestone_time = total_milestone_time + milestone_time
+            hours, minutes, seconds = seconds_to_hms(milestone_time)
+            print(f"time to process: {minutes} minute(s), and {seconds} second(s)")
+            print("---------------------end metadata-----------------------")
+
+            print("updating database...")
+            with DelayedKeyboardInterrupt():
+                db.update_utxos(inputs, outputs)
+                save(last_block_processed, keyring)
+
+                update_end_time = time.time()
+                update_time = update_end_time - milestone_end_time
+                total_update_time = total_update_time + update_time
+                hours, minutes, seconds = seconds_to_hms(update_time)
+                print(f"time to write to disk: {minutes} minute(s), and {seconds} second(s)")
+
+                # vacuum every 10 milestones
+                if (last_block_processed % BLOCKS_PER_VACUUM == 0):
+                    print("vacuuming database...")
+                    db.vacuum()
+                    vacuum_time = time.time() - update_end_time
+                    total_vacuum_time = total_vacuum_time + vacuum_time
+                    hours, minutes, seconds = seconds_to_hms(vacuum_time)
+                    print(f"time to vacuum: {minutes} minute(s), and {seconds} second(s)")
+                    hours, minutes, seconds = seconds_to_hms(total_milestone_time)
+                    print(f"total time spent processing: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+                    hours, minutes, seconds = seconds_to_hms(total_update_time)
+                    print(f"total time writing to disk: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+                    hours, minutes, seconds = seconds_to_hms(total_vacuum_time)
+                    print(f"total time vacuuming: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+            
 
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
-            print(f"\nKeyboard interrupt received, saving and stopping...")
+            print(f"\nKeyboard interrupt received, stopping...")
             running = False
-            
-        save(utxo_set, last_block_processed, keyring)
-        last_save_time = time.time()
-        next_save_time = last_save_time + (MINUTES_BETWEEN_SAVES * SECONDS_PER_MINUTE)
+
+        # TODO JDF - this whole loop needs a rethink because at the end of last year's development I assumed we'd be spending all idle time running the keyring.
+        # may need a way to start and stop, maybe consider a Runner class or something to encapsulate the utxo set builder from the keyring stuff, keyring and utxo can extend
+        running = running and last_block_processed < target_block_height

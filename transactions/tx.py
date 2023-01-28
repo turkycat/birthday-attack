@@ -37,11 +37,15 @@ class TXID(object):
     def id(self):
         return self.hash + "," + str(self.index)
 
+    def make_tuple(self):
+        return (self.hash, self.index)
+
 SATS_PER_BITCOIN  = 100000000
 class TXOutput(TXID):
 
-    def __init__(self, hash, index, value_in_sats, serialized_script, script_type):
+    def __init__(self, hash, index, height, value_in_sats, serialized_script, script_type, target = None):
         super().__init__(hash, index)
+        self.height = height
         self.serialized_script = serialized_script
         self.script_type = script_type
 
@@ -49,14 +53,18 @@ class TXOutput(TXID):
             value_in_sats = int(value_in_sats * SATS_PER_BITCOIN)
         self.value_in_sats = value_in_sats
 
+        self.target = target
+        if self.target is None:
+            self.target = TXOutput.parse_target(self.script_type, self.serialized_script)
+
     def __hash__(self):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXOutput object: {self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}>>"
+        return f"<<TXOutput object: {self.hash}, {self.index}, {self.height}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}, {self.target}>>"
 
     def __repr__(self):
-        return f"TXOutput({self.hash}, {self.index}, {self.value_in_sats}, {self.serialized_script}, {self.script_type})"
+        return f"TXOutput({self.hash}, {self.index}, {self.height}, {self.value_in_sats}, {self.serialized_script}, {self.script_type}, {self.target})"
 
     def get_pubkey(self):
         if self.script_type != "pubkey" or self.serialized_script is None:
@@ -85,35 +93,60 @@ class TXOutput(TXID):
             if len(decoded_script) > 2 and script.TypeTemplate.PUBLIC_KEY_HASH.match(decoded_script[2]):
                 return decoded_script[2]
 
+    # override TXID.make_tuple
+    def make_tuple(self):
+        return (self.hash, self.index, self.height, self.value_in_sats, self.serialized_script, self.script_type, self.target)
+
     def serialize(self):
-        info = [self.hash, str(self.index), str(self.value_in_sats), self.serialized_script, self.script_type]
+        info = [self.hash, str(self.index), str(self.height), str(self.value_in_sats), self.serialized_script, self.script_type]
+        if self.target is not None:
+            info.append(self.target)
         return ",".join(info)
+
+    @classmethod
+    def parse_target(cls, script_type, serialized_script):
+        if script_type is None or serialized_script is None:
+            return None
+        if script_type == "pubkey":
+            # OP_PUSHBYTES_65 <pubkey> OP_CHECKSIG
+            return serialized_script[2:-2]
+        if script_type == "pubkeyhash":
+            # OP_DUP OP_HASH160 OP_PUSHBYTES_20 <pubkeyhash> OP_EQUALVERIFY OP_CHECKSIG
+            return serialized_script[6:-4]
+        if script_type == "witness_v0_keyhash":
+            # OP_0 OP_PUSHBYTES_20 <pubkeyhash>
+            return serialized_script[4:]
 
     @classmethod
     def deserialize(cls, data):
         info = data.split(",")
-        if len(info) < 5:
+        if len(info) < 6:
             return None
 
         hash = str(info[0])
         index = int(info[1])
+        height = int(info[2])
         try:
-            value_in_sats = int(info[2])
+            value_in_sats = int(info[3])
         except ValueError:
-            value_in_sats = int(float(info[2]) * SATS_PER_BITCOIN)
-        script = str(info[3])
-        type = str(info[4])
-        return TXOutput(hash, index, value_in_sats, script, type)
+            value_in_sats = int(float(info[3]) * SATS_PER_BITCOIN)
+        script = str(info[4])
+        script_type = str(info[5])
+        target = None
+        if len(info) == 7:
+            target = str(info[6])
+        return TXOutput(hash, index, height, value_in_sats, script, script_type, target)
 
     @classmethod
-    def from_dictionary(cls, txid, output_data):
+    def from_dictionary(cls, txid, height, output_data):
         try:
             index = output_data["n"]
             value = float(output_data["value"])
             serialized_script = output_data["scriptPubKey"]["hex"]
             script_type = output_data["scriptPubKey"]["type"]
+            target = TXOutput.parse_target(script_type, serialized_script)
 
-            return TXOutput(txid, index, value, serialized_script, script_type)
+            return TXOutput(txid, index, height, value, serialized_script, script_type, target)
         except KeyError:
             pass
         except ValueError:
@@ -134,7 +167,7 @@ class TXInput(TXID):
         return super().__hash__()
 
     def __str__(self):
-        return f"<<TXInput object: {self.hash} {self.index}, {self.serialized_scriptSig}, {self.witness}>>"
+        return f"<<TXInput object: {self.hash}, {self.index}, {self.serialized_scriptSig}, {self.witness}>>"
 
     def __repr__(self):
         return f"TXInput({self.hash}, {self.index}, {self.serialized_scriptSig}, {self.witness})"
