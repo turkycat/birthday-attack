@@ -50,6 +50,14 @@ pip install python-bitcoinrpc
 pip install secp256k1
 ```
 
+## pick a random starting point for keyring
+
+paste output from the following command to pick a truly random starting point for target matching
+
+```bash
+$ dd if=/dev/urandom bs=32 count=1 2>/dev/null | xxd -p | tr -d '\n'
+```
+
 ## output
 
 an `output` directory will automatically be created containing a json cache file for storing program state, an `errors.txt` file, and an sqlite database containing the unspent transactions.

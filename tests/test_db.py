@@ -127,6 +127,8 @@ pubkeyhash_script_prefix = "76a914"
 pubkeyhash_script_suffix = "88ac"
 witness_pubkeyhash_prefix = "0014"
 witness_pubkeyhash_suffix = ""
+fetch_query_single = "select * from utxos where target = ?"
+fetch_query = "select * from utxos where target = ? or target = ? or target = ? or target = ?"
 
 class TestDBTargetFetch(unittest.TestCase):
 
@@ -139,9 +141,8 @@ class TestDBTargetFetch(unittest.TestCase):
         outputs.add(tx1)
         db.update_utxos(inputs, outputs)
 
-        fetch_query = "select * from utxos where target = ?"
         params = (pubkey_uncompressed,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][6], pubkey_uncompressed)
@@ -154,7 +155,7 @@ class TestDBTargetFetch(unittest.TestCase):
         keyring_uncompressed_pubkey = keyring.public_key(False)
         self.assertEqual(keyring_uncompressed_pubkey, pubkey_uncompressed)
         params = (keyring_uncompressed_pubkey,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][1], TRANSACTION_01_INDEX)
@@ -173,9 +174,9 @@ class TestDBTargetFetch(unittest.TestCase):
         outputs.add(tx1)
         db.update_utxos(inputs, outputs)
 
-        fetch_query = "select * from utxos where target = ?"
+        fetch_query_single = "select * from utxos where target = ?"
         params = (pubkey_compressed,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][6], pubkey_compressed)
@@ -184,7 +185,7 @@ class TestDBTargetFetch(unittest.TestCase):
         keyring_compressed_pubkey = keyring.public_key(True)
         self.assertEqual(keyring_compressed_pubkey, pubkey_compressed)
         params = (keyring_compressed_pubkey,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][1], TRANSACTION_01_INDEX)
@@ -203,9 +204,9 @@ class TestDBTargetFetch(unittest.TestCase):
         outputs.add(tx1)
         db.update_utxos(inputs, outputs)
 
-        fetch_query = "select * from utxos where target = ?"
+        fetch_query_single = "select * from utxos where target = ?"
         params = (pubkey_uncompressed_hashed,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][6], pubkey_uncompressed_hashed)
@@ -214,7 +215,7 @@ class TestDBTargetFetch(unittest.TestCase):
         keyring_uncompressed_pubkeyhash = keyring.public_key_hash(False)
         self.assertEqual(keyring_uncompressed_pubkeyhash, pubkey_uncompressed_hashed)
         params = (keyring_uncompressed_pubkeyhash,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][1], TRANSACTION_01_INDEX)
@@ -233,9 +234,9 @@ class TestDBTargetFetch(unittest.TestCase):
         outputs.add(tx1)
         db.update_utxos(inputs, outputs)
 
-        fetch_query = "select * from utxos where target = ?"
+        fetch_query_single = "select * from utxos where target = ?"
         params = (pubkey_compressed_hashed,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][6], pubkey_compressed_hashed)
@@ -244,7 +245,7 @@ class TestDBTargetFetch(unittest.TestCase):
         keyring_uncompressed_pubkeyhash = keyring.public_key_hash(True)
         self.assertEqual(keyring_uncompressed_pubkeyhash, pubkey_compressed_hashed)
         params = (keyring_uncompressed_pubkeyhash,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][1], TRANSACTION_01_INDEX)
@@ -263,9 +264,9 @@ class TestDBTargetFetch(unittest.TestCase):
         outputs.add(tx1)
         db.update_utxos(inputs, outputs)
 
-        fetch_query = "select * from utxos where target = ?"
+        fetch_query_single = "select * from utxos where target = ?"
         params = (pubkey_compressed_hashed,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][6], pubkey_compressed_hashed)
@@ -274,7 +275,7 @@ class TestDBTargetFetch(unittest.TestCase):
         keyring_uncompressed_pubkeyhash = keyring.public_key_hash(True)
         self.assertEqual(keyring_uncompressed_pubkeyhash, pubkey_compressed_hashed)
         params = (keyring_uncompressed_pubkeyhash,)
-        result = db.execute_read_query(fetch_query, params)
+        result = db.execute_read_query(fetch_query_single, params)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], TRANSACTION_01_HASH)
         self.assertEqual(result[0][1], TRANSACTION_01_INDEX)
@@ -293,10 +294,6 @@ class TestDBTargetFetch(unittest.TestCase):
         outputs.add(tx1)
         db.update_utxos(inputs, outputs)
 
-        # P2PK compressed and uncompressed, P2PKH compressed and uncompressed, witness compressed.
-        # but the target for P2PKH compressed and P2WPKH is the same PKH target.
-        # see note in comment above this test class.
-        fetch_query = "select * from utxos where target = ? or target = ? or target = ? or target = ?"
         params = (pubkey_uncompressed,pubkey_compressed,pubkey_uncompressed_hashed,pubkey_compressed_hashed)
         result = db.execute_read_query(fetch_query, params)
         self.assertEqual(len(result), 1)
@@ -344,13 +341,9 @@ class TestDBTargetFetch(unittest.TestCase):
         outputs.add(tx5)
         db.update_utxos(inputs, outputs)
 
-        # P2PK compressed and uncompressed, P2PKH compressed and uncompressed, witness compressed.
-        # but the target for P2PKH compressed and P2WPKH is the same PKH target.
-        # see note in comment above this test class.
-        fetch_query = "select * from utxos where target = ? or target = ? or target = ? or target = ?"
         params = (pubkey_uncompressed,pubkey_compressed,pubkey_uncompressed_hashed,pubkey_compressed_hashed)
-        result = db.execute_read_query(fetch_query, params)
-        self.assertEqual(len(result), 5)
+        results = db.execute_read_query(fetch_query, params)
+        self.assertEqual(len(results), 5)
 
         keyring = KeyRing(private_key)
         keyring_uncompressed_pubkey = keyring.public_key(False)
@@ -361,20 +354,30 @@ class TestDBTargetFetch(unittest.TestCase):
         self.assertEqual(keyring_compressed_pubkey, pubkey_compressed)
         self.assertEqual(keyring_uncompressed_pubkeyhash, pubkey_uncompressed_hashed)
         self.assertEqual(keyring_compressed_pubkeyhash, pubkey_compressed_hashed)
-        result = db.execute_read_query(fetch_query, params)
-        self.assertEqual(len(result), 5)
+        results = db.execute_read_query(fetch_query, params)
+        self.assertEqual(len(results), 5)
+        
+        # this code was written to test code used in main
+        # with open("matchfile.txt", "a", encoding = "utf-8") as match_file:
+        #     text_output = f"match found! private key: {keyring.hex()} with value {keyring.current()}"
+        #     print(text_output)
+        #     match_file.write(text_output)
+        #     match_file.write("\n")
 
-    # def test_pubkeyhash_fetch_uncompressed(self):
-    #     db = DatabaseController(":memory:")
-    #     inputs = set()
-    #     outputs = set()
-    #     
-    #     print(scriptPubKey)
-    #     tx1 = TXOutput(TRANSACTION_01_HASH, TRANSACTION_01_INDEX, TRANSACTION_01_BLOCK_HEIGHT, TRANSACTION_01_VALUE, scriptPubKey, TRANSACTION_01_TYPE)
-    #     outputs.add(txoutput_01)
+        #     for row in results:
+        #         lines = ["------------------------------------match found!------------------------------------"]
+        #         lines.append(f"private key: {keyring.hex()}")
+        #         lines.append(f"dec: {keyring.current()}")
+        #         lines.append(f"hash: {row[0]}")
+        #         lines.append(f"vout: {row[1]}")
+        #         lines.append(f"height: {row[2]}")
+        #         lines.append(f"value: {row[3]}")
+        #         lines.append(f"script: {row[4]}")
+        #         lines.append(f"type: {row[5]}")
+        #         lines.append(f"target: {row[6]}")
+        #         lines.append("------------------------------------------------------------------------------------")
 
-    #     fetch_query = "select * from utxos where target = ?"
-    #     params = ("7c5541e930f3b2b92c8efd38cf4ebd7ad0443367",)
-    #     result = db.execute_read_query(fetch_query, params)
-    #     self.assertEqual(len(result), 1)
-    #     self.assertEqual(result[0][0], TRANSACTION_01_HASH)
+        #         for line in lines:
+        #             print(line)
+        #             match_file.write(line)
+        #             match_file.write("\n")

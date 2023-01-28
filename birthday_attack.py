@@ -206,6 +206,7 @@ def get_target_block_height(rpc):
 
 BLOCKS_PER_MILESTONE = 100
 BLOCKS_PER_VACUUM = BLOCKS_PER_MILESTONE * 100
+FETCH_QUERY = "select * from utxos where target = ? or target = ? or target = ? or target = ?"
 
 if __name__ == "__main__":
     options = evaulate_arguments()
@@ -214,13 +215,14 @@ if __name__ == "__main__":
 
     last_block_processed, keyring = load()
     last_block_processed = last_block_processed or 0
-    keyring = keyring or KeyRing("1313131313131313131313131313131313131313131313131313131313131313")
+    keyring = keyring or KeyRing("34e1fb6c845301f600660c3921b4baf63744f052d0cff22651039ae57bc11a84")
     rpc = RpcController()
     db = DatabaseController(file_paths[FILE_NAME_DATABASE])
 
     total_milestone_time = 0
     total_update_time = 0
     total_vacuum_time = 0
+    key_count = 0
     
     running = True
     while running:
@@ -249,52 +251,6 @@ if __name__ == "__main__":
                 inputs.update(block_inputs)
                 outputs.update(block_outputs)
                 last_block_processed = current_block
-
-                
-
-                # we must add all new outputs to our primary set first, then subtract spent outputs from that set
-                #modified_utxo_set = utxo_set.union(block_outputs)
-                #modified_utxo_set = modified_utxo_set.difference(block_inputs)
-
-
-            # refresh our targets
-            #if time.time() < next_save_time:
-            # targets.clear()
-            # for utxo in utxo_set:
-            #     target = utxo.get_pubkeyhash() or utxo.get_pubkey()
-            #     if target is not None:
-            #         targets[target] = utxo.id()
-
-            # count = 0
-            # while time.time() < next_save_time:
-            #     if keyring.public_key_hash() in targets or keyring.public_key() in targets or \
-            #         keyring.public_key_hash(False) in targets or keyring.public_key(False) in targets:
-                    
-            #         with open(file_paths[FILE_NAME_MATCHES], "a", encoding = "utf-8") as match_file:
-            #             text_output = f"match found! {keyring.hex()} with value {keyring.current()}\n"
-            #             print(text_output)
-            #             match_file.write(text_output)
-
-            #             if keyring.public_key_hash() in targets:
-            #                 text_output = f"{keyring.public_key_hash()} : {targets[keyring.public_key_hash()]}"
-
-            #             if keyring.public_key_hash(False) in targets:
-            #                 text_output = f"{keyring.public_key_hash(False)} : {targets[keyring.public_key_hash(False)]}"
-
-            #             if keyring.public_key() in targets:
-            #                 text_output = f"{keyring.public_key()} : {targets[keyring.public_key()]}"
-
-            #             if keyring.public_key(False) in targets:
-            #                 text_output = f"{keyring.public_key(False)} : {targets[keyring.public_key(False)]}"
-
-            #             print(text_output)
-            #             match_file.write(text_output)
-
-            #     keyring.next()
-            #     count += 1
-            #     if count % 1000 == 0:
-            #         print(f"attempted {count} private keys in this rotation, current: {keyring.current()}")
-
 
             print("-------------------milestone metadata-------------------")
             print("last block processed: ", last_block_processed)
@@ -338,7 +294,52 @@ if __name__ == "__main__":
                     print(f"total time writing to disk: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
                     hours, minutes, seconds = seconds_to_hms(total_vacuum_time)
                     print(f"total time vacuuming: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
-            
+
+            # skip keyring rotation if we haven't reached our target block height yet
+            if last_block_processed < target_block_height:
+                continue
+
+            next_update_time = time.time() + SECONDS_PER_HOUR
+            while time.time() < next_update_time:
+                key_count += 1
+                print(f"key number {key_count}: current: {keyring.current()}", end = "\r")
+                
+                uncompressed_pubkey = keyring.public_key(False)
+                compressed_pubkey = keyring.public_key(True)
+                uncompressed_pubkeyhash = keyring.public_key_hash(False)
+                compressed_pubkeyhash = keyring.public_key_hash(True)
+
+                params = (uncompressed_pubkey, compressed_pubkey, uncompressed_pubkeyhash, compressed_pubkeyhash)
+                results = db.execute_read_query(FETCH_QUERY, params)
+                if len(results) > 0:
+                    # holy shit we did it!
+                    with open(file_paths[FILE_NAME_MATCHES], "a", encoding = "utf-8") as match_file:
+                        text_output = f"match found! private key: {keyring.hex()} with value {keyring.current()}"
+                        print(text_output)
+                        match_file.write(text_output)
+                        match_file.write("\n")
+
+                        for row in results:
+                            lines = ["------------------------------------match found!------------------------------------"]
+                            lines.append(f"private key: {keyring.hex()}")
+                            lines.append(f"dec: {keyring.current()}")
+                            lines.append(f"hash: {row[0]}")
+                            lines.append(f"vout: {row[1]}")
+                            lines.append(f"height: {row[2]}")
+                            lines.append(f"value: {row[3]}")
+                            lines.append(f"script: {row[4]}")
+                            lines.append(f"type: {row[5]}")
+                            lines.append(f"target: {row[6]}")
+                            lines.append("------------------------------------------------------------------------------------")
+
+                            for line in lines:
+                                print(line)
+                                match_file.write(line)
+                                match_file.write("\n")
+
+                keyring.next()
+            print("")
+            save(last_block_processed, keyring)
 
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
