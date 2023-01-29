@@ -108,7 +108,7 @@ class TXOutput(TXID):
         if script_type is None or serialized_script is None:
             return None
         if script_type == "pubkey":
-            # OP_PUSHBYTES_65 <pubkey> OP_CHECKSIG
+            # [ OP_PUSHBYTES_65 OR OP_PUSHBYTES_33 ] <pubkey> OP_CHECKSIG
             return serialized_script[2:-2]
         if script_type == "pubkeyhash":
             # OP_DUP OP_HASH160 OP_PUSHBYTES_20 <pubkeyhash> OP_EQUALVERIFY OP_CHECKSIG

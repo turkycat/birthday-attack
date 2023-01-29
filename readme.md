@@ -1,12 +1,8 @@
 # birthday attack
 
-an exploratory script to build the UTXO set from RPC commands and attempt to collide by randomizing private keys
+an exploratory script to build the UTXO set from RPC commands (or dump file) and attempt to collide by randomizing private keys
 
-yes, I know it's basically impossible. should be fun, though
-
-## how to interpret this code
-
-this project was written with two, sometimes conflicting, ideas. First, learn the implementation details of Bitcoin while re-learning Python- the second: to create a functional program. The reason these sometimes conflict is because of scope creep- it wasn't necessary for me, for example, to write script-parsing functionality in an attempt to identify different script types automatically when this program chooses to retrieve the block/transaction data in json (`dict`) format. I could have simply read the `type` field under `pubkeyScript` from the beginning. I did this to prove that I could interpret these scripts and arrive at my own conclusion to the type.
+it's basically impossible. should be fun, though
 
 ## setup
 
@@ -20,18 +16,6 @@ rpcservertimeout=<some value>
 ```
 
 I typically set my the `rpcservertimeout` value high, such as 1200. However, 30 (the default) is fine with the use of `RpcController`.
-
-### RpcController
-
-This repository contains an `RpcController` class which wraps the behavior of `python-bitcoinrpc` making it much easier to use. An RPC connection will be established automatically and maintained. If the connection is severed either through timeout or failure, reconnection attempts will be made. All RPC exceptions are caught and managed by the controller, making usage in a primary application much easier and cleaner, although errors will not be immediately surfaced.
-
-To configure `RpcController`, edit `config.py` in the module directory to define your authentication credentials.
-
-note: any time the RPC connection times out, you will see this error. It is normal, as the connection will be re-established automatically.
-
-```bash
-IO Error [Errno 32] Broken pipe
-```
 
 ### dependencies
 
@@ -50,9 +34,43 @@ pip install python-bitcoinrpc
 pip install secp256k1
 ```
 
+## importing
+I *strongly recommend* using the import feature to bootstrap this program. reading every single block from rpc takes a _**long time**_. 
+
+in3rsha's bitcoin-utxo-dump can be used to dump the current state of the blockchain. the project can be found here:
+
+https://github.com/in3rsha/bitcoin-utxo-dump
+
+as of Jan 28, 2023- I've fixed a bug in this project, and until my pull request is merged by in3rsha, I have to recommend using my version:
+
+https://github.com/turkycat/bitcoin-utxo-dump
+
+follow the instructions in the repo to build or install bitcoin-utxo-dump, point it at a copy of your chainstate folder and run with the following parameter to get the proper format for importing: `-f txid,vout,height,amount,script,type`
+
+the program will output a file named `utxodump.csv`, which you should then pass as an argument using the `--import` switch. IE
+```
+python birthday-attack.py --import ./utxodump.csv
+```
+
+importing will force clean the outputs folder (the same as running with `--clean`)- so any existing state you may have in that folder that you wish to preserve should be backed up before importing.
+
+## RpcController
+
+This repository contains an `RpcController` class which wraps the behavior of `python-bitcoinrpc` making it much easier to use. An RPC connection will be established automatically and maintained. If the connection is severed either through timeout or failure, reconnection attempts will be made. All RPC exceptions are caught and managed by the controller, making usage in a primary application much easier and cleaner, although errors will not be immediately surfaced.
+
+To configure `RpcController`, edit `config.py` in the module directory to define your authentication credentials.
+
+note: any time the RPC connection times out, you will see this error. It is normal, as the connection will be re-established automatically.
+
+```bash
+IO Error [Errno 32] Broken pipe
+```
+
 ## pick a random starting point for keyring
 
-paste output from the following command to pick a truly random starting point for target matching
+paste output from the following command to pick a truly random starting point for target matching. either overwrite the saved value in `cache.json` or replace the value in the `KeyRing` initialization in `__main__`
+
+TODO: add a switch to read this random value instead of hardcoding it
 
 ```bash
 $ dd if=/dev/urandom bs=32 count=1 2>/dev/null | xxd -p | tr -d '\n'
@@ -76,7 +94,7 @@ each row contains a single utxo.
 |type|text|the type as described by bitcoin core. IE- 'pubkeyhash', 'multisig', 'witness_v0_keyhash' etc
 |target|text|the target pubkey or pubkey hash, should always be a substring of the script
 
-(`hash`, `idx`, `block_hash`) is used as a composite primary key for this database. normally, `hash` and `idx` should suffice to identify a transaction (and only those two values are used when *removing* spent outputs from the database)- but `block_hash` was also added as part of the primary key due to some early coinbase transactions having the same transaction hash.
+(`hash`, `idx`, `height`) is used as a composite primary key for this database. normally, `hash` and `idx` should suffice to identify a transaction (and only those two values are used when *removing* spent outputs from the database)- but `height` was also added as part of the primary key due to some early coinbase transactions having the same transaction hash.
 
 example of a duplicate transaction hash:
 

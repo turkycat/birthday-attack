@@ -174,10 +174,13 @@ OPTION_CLEAN = "--clean"
 SHORT_OPTION_CLEAN = "-c"
 OPTION_TARGET = "--target"
 SHORT_OPTION_TARGET = "-t"
+OPTION_IMPORT = "--import"
+SHORT_OPTION_IMPORT = "-i"
 def evaulate_arguments():
     options = {
         OPTION_CLEAN: False,
-        OPTION_TARGET: 0
+        OPTION_TARGET: 0,
+        OPTION_IMPORT: False
     }
 
     index = 1
@@ -187,6 +190,10 @@ def evaulate_arguments():
         elif (sys.argv[index] == SHORT_OPTION_TARGET or sys.argv[index] == OPTION_TARGET) and index + 1 < len(sys.argv):
             index = index + 1
             options[OPTION_TARGET] = int(sys.argv[index])
+        elif (sys.argv[index] == SHORT_OPTION_IMPORT or sys.argv[index] == OPTION_IMPORT) and index + 1 < len(sys.argv):
+            index = index + 1
+            options[OPTION_CLEAN] = True
+            options[OPTION_IMPORT] = str(sys.argv[index])
 
         index = index + 1
     return options
@@ -199,6 +206,142 @@ def get_target_block_height(rpc):
     target_block_height = best_block_height - STAY_BEHIND_BEST_BLOCK_OFFSET
     return target_block_height
 
+# -----------------------------------------------------------------
+#                            importing
+# -----------------------------------------------------------------
+
+class ImportException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+# translate output from in3rsha's script into what bitcoin core will use
+# fwiw- i prefer the style he uses. <3 in3rsha
+type_name_pubkeyhash = "pubkeyhash"
+type_name_scripthash = "scripthash"
+type_name_pubkey = "pubkey"
+type_name_multisig = "multisig"
+type_name_witness_v0_keyhash = "witness_v0_keyhash"
+type_name_witness_v0_scripthash = "witness_v0_scripthash"
+type_name_witness_v1_taproot = "witness_v1_taproot"
+type_name_nonstandard = "nonstandard"
+
+p2_type_name_map = {
+    "p2pkh": type_name_pubkeyhash,
+    "p2sh": type_name_scripthash,
+    "p2pk": type_name_pubkey,
+    "p2ms": type_name_multisig,
+    "p2wpkh": type_name_witness_v0_keyhash,
+    "p2wsh": type_name_witness_v0_scripthash,
+    "p2tr": type_name_witness_v1_taproot,
+    "non-standard": type_name_nonstandard
+}
+
+# these variables are used to verify the hex-encoded lengths of the scripts as read from file
+# it is used only to provide a warning about unexpected values in the scripts
+pubkey_compressed_length = 66
+pubkey_uncompressed_length = 130
+static_type_lengths = {
+    type_name_pubkeyhash: 40,
+    type_name_scripthash: 40,
+    type_name_witness_v0_keyhash: 44,
+    type_name_witness_v0_scripthash: 68,
+    type_name_witness_v1_taproot: 68
+}
+
+# the 'script' output is a bit strange when decompressed from bitcoin core's leveldb.
+# some of the script values are only a subset of the data, as the full script can be 
+# inferred from the type. i don't really -need- the full script, but i kinda like
+# having them so deal with it. the database schema used in this program defines
+# one column for the full script, and one indexed column for "target" with only the 
+# pubkey or pubkey hash targets i care about. to keep with this design, i will reconstruct
+# the full scripts for the types that need it:
+# pubkeyhash: script is pubkey hash160 only.
+#             prefix: [ OP_DUP (x76), OP_HASH160 (xa9), OP_PUSHBYTES_20 (x14) ]
+#             suffix: [ OP_EQUALVERIFY (x88), OP_CHECKSIG (xac) ]
+pubkeyhash_prefix = "76a914"
+pubkeyhash_suffix = "88ac"
+# scripthash: script is only the hash160.
+#             prefix: [ OP_HASH160 (xa9), OP_PUSHBYTES_20 (x14) ]
+#             suffix: OP_EQUAL (x87)
+scripthash_prefix = "a914"
+scripthash_suffix = "87"
+# pubkey: script is only pubkey. may be 130(u) (65 bytes) or 66(c) (33 bytes).
+#         prefix: one byte size, either 65 (x41) or 33 (x21)
+#         suffix: OP_CHECKSIG (xac)
+pubkey_compressed_prefix = "21"
+pubkey_uncompressed_prefix = "41"
+pubkey_suffix = "ac"
+#
+#
+# types requiring no modification:
+# multisig: full script included
+# witness_v0_keyhash: full witness script included, [ OP_0, OP_PUSHBYTES_20, <20-byte keyhash> ]
+# witness_v0_scripthash: full witness script included, [ OP_0, OP_PUSHBYTES_32, <32-byte scripthash> ]
+# witness_v1_taproot: full witness script included, [ OP_PUSHNUM_1, OP_PUSHBYTES_32, <32-byte scripthash> ]
+# nonstandard: full script included
+
+# import from an output file written using in3rsha's utxo dump
+# https://github.com/in3rsha/bitcoin-utxo-dump
+# run with -f txid,vout,height,amount,script,type
+def import_from_utxo_dump():
+    db = DatabaseController(file_paths[FILE_NAME_DATABASE])
+    max_block_height = 0
+    type_lengths = dict()
+    inputs = set()
+    outputs = set()
+    INSERT_COUNT = 10000
+    
+    with open(options[OPTION_IMPORT], "r", encoding = "utf-8") as import_file:
+        line = import_file.readline()
+        if line.find("txid,vout,height,amount,script,type") != 0:
+            raise ImportException("input format does not match expected, be sure to run utxodump with '-f txid,vout,height,amount,script,type'")
+
+        line = import_file.readline()
+        line_count = 0
+        while len(line) > 0:
+            line_count += 1
+            print(f"importing transaction from line {line_count}", end = "\r")
+
+            fields = line.split(',')
+            height = int(fields[2])
+            max_block_height = max(max_block_height, height)
+
+            # remap the 'type' as reported by bitcoin-utxo-dump and verify the script length
+            # we will still import a transaction that fails this check, but it's useful here
+            # as additional information about the quality of our imports
+            script = fields[4]
+            script_type = p2_type_name_map.get(fields[5][:-1], "unknown") # remove newline
+            if script_type in static_type_lengths:
+                if len(script) != static_type_lengths[script_type]:
+                    print(f"warning: unexpected length for type '{script_type}'. expected {static_type_lengths[script_type]}, actual: {len(script)}")
+                    print(line)
+            elif script_type == "pubkey":
+                if len(script) != pubkey_compressed_length and len(script) != pubkey_uncompressed_length:
+                    print(f"warning: unexpected length for type 'pubkey'. expected {pubkey_compressed_length} or {pubkey_uncompressed_length}, actual: {len(script)}")
+                    print(line)
+
+            # modify the scripts where necessary, see notes above suffix & prefix definitions
+            if script_type == type_name_pubkeyhash:
+                script = pubkeyhash_prefix + script + pubkeyhash_suffix
+            elif script_type == type_name_scripthash:
+                script = scripthash_prefix + script + scripthash_suffix
+            elif script_type == type_name_pubkey:
+                if len(script) == pubkey_compressed_length:
+                    script = pubkey_compressed_prefix + script + pubkey_suffix
+                elif len(script) == pubkey_uncompressed_length:
+                    script = pubkey_uncompressed_prefix + script + pubkey_suffix
+
+            # txhash = fields[0], vout = fields[1], height = fields[2], amount = fields[3], script = fields[4], script_type = fields[5]
+            output = TXOutput(fields[0], int(fields[1]), height, int(fields[3]), script, script_type)
+            outputs.add(output)
+            if line_count % INSERT_COUNT == 0:
+                db.update_utxos(inputs, outputs)
+                outputs.clear()
+
+            line = import_file.readline()
+
+    db.update_utxos(inputs, outputs)
+    return max_block_height
 
 # -----------------------------------------------------------------
 #                             main
@@ -212,8 +355,13 @@ if __name__ == "__main__":
     options = evaulate_arguments()
     if options[OPTION_CLEAN]:
         clean_outputs()
+        
+    if options[OPTION_IMPORT]:
+        last_block_processed = import_from_utxo_dump()
+        keyring = None
+    else:
+        last_block_processed, keyring = load()
 
-    last_block_processed, keyring = load()
     last_block_processed = last_block_processed or 0
     keyring = keyring or KeyRing("34e1fb6c845301f600660c3921b4baf63744f052d0cff22651039ae57bc11a84")
     rpc = RpcController()
@@ -280,7 +428,7 @@ if __name__ == "__main__":
                 hours, minutes, seconds = seconds_to_hms(update_time)
                 print(f"time to write to disk: {minutes} minute(s), and {seconds} second(s)")
 
-                # vacuum every 10 milestones
+                # vacuum every so often
                 if (last_block_processed % BLOCKS_PER_VACUUM == 0):
                     print("vacuuming database...")
                     db.vacuum()
@@ -300,9 +448,10 @@ if __name__ == "__main__":
                 continue
 
             next_update_time = time.time() + SECONDS_PER_HOUR
+            start_key_count = key_count
             while time.time() < next_update_time:
                 key_count += 1
-                print(f"key number {key_count}: current: {keyring.current()}", end = "\r")
+                print(f"key number {key_count}: current: {keyring.hex()}", end = "\r")
                 
                 uncompressed_pubkey = keyring.public_key(False)
                 compressed_pubkey = keyring.public_key(True)
@@ -339,6 +488,7 @@ if __name__ == "__main__":
 
                 keyring.next()
             print("")
+            print(f"{start_key_count - key_count} private keys generated in the last period")
             save(last_block_processed, keyring)
 
         except KeyboardInterrupt:
@@ -346,6 +496,4 @@ if __name__ == "__main__":
             print(f"\nKeyboard interrupt received, stopping...")
             running = False
 
-        # TODO JDF - this whole loop needs a rethink because at the end of last year's development I assumed we'd be spending all idle time running the keyring.
-        # may need a way to start and stop, maybe consider a Runner class or something to encapsulate the utxo set builder from the keyring stuff, keyring and utxo can extend
         running = running and last_block_processed < target_block_height
