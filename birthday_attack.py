@@ -63,7 +63,7 @@ if ERROR_LOGGING:
     log.addHandler(error_handler)
 
 # -----------------------------------------------------------------
-#                             functions
+#                      transaction processing
 # -----------------------------------------------------------------
 
 # decipher each script type to determine its type and parameters note that some of this is
@@ -138,8 +138,10 @@ def clean_outputs():
 def save(last_block_processed, keyring):
     with DelayedKeyboardInterrupt():
         cache = {}
-        cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
-        cache[PROPERTY_NAME_PRIVATE_KEY] = keyring.hex()
+        if last_block_processed is not None:
+            cache[PROPERTY_NAME_LAST_BLOCK] = last_block_processed
+        if keyring is not None:
+            cache[PROPERTY_NAME_PRIVATE_KEY] = keyring.hex()
         with open(file_paths[FILE_NAME_CACHE], "w", encoding="utf-8") as cache_file:
             cache_file.write(json.dumps(cache))
 
@@ -151,8 +153,10 @@ def load():
     if os.path.exists(file_paths[FILE_NAME_CACHE]):
         with open(file_paths[FILE_NAME_CACHE], "r", encoding="utf-8") as cache_file:
             cache = json.loads(cache_file.read())
-            last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
-            keyring = KeyRing(cache[PROPERTY_NAME_PRIVATE_KEY])
+            if PROPERTY_NAME_LAST_BLOCK in cache:
+                last_block_processed = cache[PROPERTY_NAME_LAST_BLOCK]
+            if PROPERTY_NAME_PRIVATE_KEY in cache:
+                keyring = KeyRing(cache[PROPERTY_NAME_PRIVATE_KEY])
         
     return last_block_processed, keyring
 
@@ -341,7 +345,7 @@ def import_from_utxo_dump():
             line = import_file.readline()
 
     db.update_utxos(inputs, outputs)
-    return max_block_height
+    save(max_block_height, None)
 
 # -----------------------------------------------------------------
 #                             main
@@ -357,13 +361,11 @@ if __name__ == "__main__":
         clean_outputs()
         
     if options[OPTION_IMPORT]:
-        last_block_processed = import_from_utxo_dump()
-        keyring = None
-    else:
-        last_block_processed, keyring = load()
+        import_from_utxo_dump()
 
+    last_block_processed, keyring = load()
     last_block_processed = last_block_processed or 0
-    keyring = keyring or KeyRing("34e1fb6c845301f600660c3921b4baf63744f052d0cff22651039ae57bc11a84")
+    keyring = keyring or KeyRing("c2cc7fb3997955c46ff39265f8bf22803372eda3fd01e75978f608c241e68abf")
     rpc = RpcController()
     db = DatabaseController(file_paths[FILE_NAME_DATABASE])
 
@@ -428,20 +430,20 @@ if __name__ == "__main__":
                 hours, minutes, seconds = seconds_to_hms(update_time)
                 print(f"time to write to disk: {minutes} minute(s), and {seconds} second(s)")
 
-                # vacuum every so often
-                if (last_block_processed % BLOCKS_PER_VACUUM == 0):
-                    print("vacuuming database...")
-                    db.vacuum()
-                    vacuum_time = time.time() - update_end_time
-                    total_vacuum_time = total_vacuum_time + vacuum_time
-                    hours, minutes, seconds = seconds_to_hms(vacuum_time)
-                    print(f"time to vacuum: {minutes} minute(s), and {seconds} second(s)")
-                    hours, minutes, seconds = seconds_to_hms(total_milestone_time)
-                    print(f"total time spent processing: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
-                    hours, minutes, seconds = seconds_to_hms(total_update_time)
-                    print(f"total time writing to disk: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
-                    hours, minutes, seconds = seconds_to_hms(total_vacuum_time)
-                    print(f"total time vacuuming: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+                # TODO: update vacuum logic
+                # if (last_block_processed % BLOCKS_PER_VACUUM == 0):
+                #     print("vacuuming database...")
+                #     db.vacuum()
+                #     vacuum_time = time.time() - update_end_time
+                #     total_vacuum_time = total_vacuum_time + vacuum_time
+                #     hours, minutes, seconds = seconds_to_hms(vacuum_time)
+                #     print(f"time to vacuum: {minutes} minute(s), and {seconds} second(s)")
+                #     hours, minutes, seconds = seconds_to_hms(total_milestone_time)
+                #     print(f"total time spent processing: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+                #     hours, minutes, seconds = seconds_to_hms(total_update_time)
+                #     print(f"total time writing to disk: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
+                #     hours, minutes, seconds = seconds_to_hms(total_vacuum_time)
+                #     print(f"total time vacuuming: {hours} hour(s), {minutes} minute(s), and {seconds} second(s)")
 
             # skip keyring rotation if we haven't reached our target block height yet
             if last_block_processed < target_block_height:
@@ -488,12 +490,10 @@ if __name__ == "__main__":
 
                 keyring.next()
             print("")
-            print(f"{start_key_count - key_count} private keys generated in the last period")
+            print(f"{key_count - start_key_count} private keys generated in the last period")
             save(last_block_processed, keyring)
 
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
             print(f"\nKeyboard interrupt received, stopping...")
             running = False
-
-        running = running and last_block_processed < target_block_height
