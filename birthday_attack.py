@@ -372,6 +372,7 @@ if __name__ == "__main__":
     total_milestone_time = 0
     total_update_time = 0
     total_vacuum_time = 0
+    start_key_count = 0
     key_count = 0
     
     running = True
@@ -402,28 +403,34 @@ if __name__ == "__main__":
                 outputs.update(block_outputs)
                 last_block_processed = current_block
 
-            print("-------------------milestone metadata-------------------")
-            print("last block processed: ", last_block_processed)
-            print("original size of new outputs: ", len(outputs))
-            print("original size of spent outputs: ", len(inputs))
-            spent_outputs = outputs.intersection(inputs)
-            outputs.difference_update(spent_outputs)
-            inputs.difference_update(spent_outputs)
-            print("outputs created and spent in this milestone: ", len(spent_outputs))
-            print("new outputs less spent in this milestone: ", len(outputs))
-            print("spent outputs less spent in this milestone: ", len(inputs))
-            milestone_end_time = time.time()
-            milestone_time = milestone_end_time - milestone_start_time
-            total_milestone_time = total_milestone_time + milestone_time
-            hours, minutes, seconds = seconds_to_hms(milestone_time)
-            print(f"time to process: {minutes} minute(s), and {seconds} second(s)")
-            print("---------------------end metadata-----------------------")
+            # print a more detailed milestone message if we're updating large amounts of blocks
+            if last_block_processed < target_block_height:
+                print("-------------------milestone metadata-------------------")
+                print("last block processed: ", last_block_processed)
+                print("original size of new outputs: ", len(outputs))
+                print("original size of spent outputs: ", len(inputs))
+                spent_outputs = outputs.intersection(inputs)
+                outputs.difference_update(spent_outputs)
+                inputs.difference_update(spent_outputs)
+                print("outputs created and spent in this milestone: ", len(spent_outputs))
+                print("new outputs less spent in this milestone: ", len(outputs))
+                print("spent outputs less spent in this milestone: ", len(inputs))
+                milestone_end_time = time.time()
+                milestone_time = milestone_end_time - milestone_start_time
+                total_milestone_time = total_milestone_time + milestone_time
+                hours, minutes, seconds = seconds_to_hms(milestone_time)
+                print(f"time to process: {minutes} minute(s), and {seconds} second(s)")
+                print("---------------------end metadata-----------------------")
+            else:
+                print("last block processed: ", last_block_processed)
 
             print("updating database...")
             with DelayedKeyboardInterrupt():
                 db.update_utxos(inputs, outputs)
                 save(last_block_processed, keyring)
 
+            # more of those extra messages for large block updates
+            if last_block_processed < target_block_height:
                 update_end_time = time.time()
                 update_time = update_end_time - milestone_end_time
                 total_update_time = total_update_time + update_time
@@ -451,6 +458,7 @@ if __name__ == "__main__":
 
             next_update_time = time.time() + SECONDS_PER_HOUR
             start_key_count = key_count
+            print("rotating keys...")
             while time.time() < next_update_time:
                 key_count += 1
                 print(f"key number {key_count}: current: {keyring.hex()}", end = "\r")
@@ -496,4 +504,10 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             log.info(f"KeyboardInterrupt intercepted at {time.time()}")
             print(f"\nKeyboard interrupt received, stopping...")
+            
+            # save if we were interrupted while rotating keys
+            if key_count > start_key_count:
+                save(last_block_processed, keyring)
+
             running = False
+    
