@@ -406,15 +406,15 @@ if __name__ == "__main__":
             # print a more detailed milestone message if we're updating large amounts of blocks
             if last_block_processed < target_block_height:
                 print("-------------------milestone metadata-------------------")
-                print("last block processed: ", last_block_processed)
-                print("original size of new outputs: ", len(outputs))
-                print("original size of spent outputs: ", len(inputs))
+                print("last block processed:", last_block_processed)
+                print("original size of new outputs:", len(outputs))
+                print("original size of spent outputs:", len(inputs))
                 spent_outputs = outputs.intersection(inputs)
                 outputs.difference_update(spent_outputs)
                 inputs.difference_update(spent_outputs)
-                print("outputs created and spent in this milestone: ", len(spent_outputs))
-                print("new outputs less spent in this milestone: ", len(outputs))
-                print("spent outputs less spent in this milestone: ", len(inputs))
+                print("outputs created and spent in this milestone:", len(spent_outputs))
+                print("new outputs less spent in this milestone:", len(outputs))
+                print("spent outputs less spent in this milestone:", len(inputs))
                 milestone_end_time = time.time()
                 milestone_time = milestone_end_time - milestone_start_time
                 total_milestone_time = total_milestone_time + milestone_time
@@ -422,7 +422,7 @@ if __name__ == "__main__":
                 print(f"time to process: {minutes} minute(s), and {seconds} second(s)")
                 print("---------------------end metadata-----------------------")
             else:
-                print("last block processed: ", last_block_processed)
+                print("last block processed:", last_block_processed)
 
             print("updating database...")
             with DelayedKeyboardInterrupt():
