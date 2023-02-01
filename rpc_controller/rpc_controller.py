@@ -62,6 +62,7 @@ class RpcController(object):
 
     def request(self, service_name, *args):
         attempt = 0
+        last_err = None
         while attempt < RpcController.retries:
             attempt += 1
             
@@ -69,8 +70,11 @@ class RpcController(object):
                 return self.__rpc_connection.__getattr__(service_name)(*args)
             except JSONRPCException as err:
                 log.error(f"RPC Exception {err}")
+                last_err = err
             except IOError as err:
                 log.error(f"IO Error {err}")
+                last_err = err
 
             self.connect()
-                
+
+        raise IOError(last_err)

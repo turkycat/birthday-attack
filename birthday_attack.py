@@ -379,9 +379,13 @@ if __name__ == "__main__":
     while running:
         milestone_start_time = time.time()
         milestone_target = last_block_processed + BLOCKS_PER_MILESTONE
+        milestone_start_block = last_block_processed
         inputs = set()
         outputs = set()
 
+        # -----------------------------------------------------------------
+        #                     read blockchain updates
+        # -----------------------------------------------------------------
         try:
             target_block_height = options[OPTION_TARGET] or get_target_block_height(rpc)
             current_target = min(target_block_height, milestone_target)
@@ -456,6 +460,27 @@ if __name__ == "__main__":
             if last_block_processed < target_block_height:
                 continue
 
+        except IOError as err:
+            message = "RPC failure. waiting 1 minute before trying again..."
+            last_block_processed = milestone_start_block
+            print(message)
+            log.error(message)
+            time.sleep(SECONDS_PER_MINUTE)
+            continue
+
+        except KeyboardInterrupt:
+            log.info(f"KeyboardInterrupt intercepted at {time.time()}")
+            print(f"\nKeyboard interrupt received, stopping...")
+
+            # we intentionally do not want to save here as we will record
+            # a last_block_processed which is not persisted in the database
+            running = False
+            continue
+
+        # -----------------------------------------------------------------
+        #                           key rotation
+        # -----------------------------------------------------------------
+        try:
             next_update_time = time.time() + SECONDS_PER_HOUR
             start_key_count = key_count
             print("rotating keys...")
@@ -510,4 +535,3 @@ if __name__ == "__main__":
                 save(last_block_processed, keyring)
 
             running = False
-    
