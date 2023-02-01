@@ -1,8 +1,45 @@
 # birthday attack
 
-an exploratory script to build the UTXO set from RPC commands (or dump file) and attempt to collide by randomizing private keys
+build the bitcoin UTXO set and attempt to collide by randomizing private keys
 
-it's basically impossible. should be fun, though
+it's basically impossible. #getatme
+
+## inspiration
+
+ok sure, so there are liek just as many private keys as there are atoms in the known universe and stuff. everyone likes to be all smart and say things like "guessing a single private key is hard and stuff" but what if you could guess -any- private key? what are the odds?
+
+the 'birthday paradox' is the idea that while you and i have a 1/366 chance of having the same birthday- it only takes 15 people in a room before the odds are *more likely* than not that any two people share a birthday. maths.
+
+so what *are* the odds?
+
+### the odds
+
+the following is a table of all UTXOs on the bitcoin blockchain as of January 28th, 2023
+
+**Total UTXOs**: 83310739  
+**Total BTC**:   19266337.75311853  
+
+Script Types:  
+|type|count|
+|--|--|
+non-standard| 9,565  
+p2pk|47,584  
+p2pkh|47,777,074  
+p2sh|15,252,482  
+p2ms|440,424  
+p2wpkh|18,343,108  
+p2wsh|1,120,662  
+p2tr|319,840  
+
+out of the 'easy' to guess script types: p2pk, p2pkh, p2wpkh... this give us a total of 66,167,766 targets (based on a single pubkey) we could easily identify, add to a set, and randomly guess private keys to try to find a match.
+
+therefore, for every private key we test- we have a 1 in 1,749,977,311,268,393,069,682,640,262,276,501,272,818,145,923,590,142,361,648,747,610,374,144 chance! bullish!
+
+my fastest computer can do 30 million private keys an hour. sure, I could re-write the collision logic in C++ or Rust and do this much faster, but this is my thing and I can do it stupid if i want (and i do)
+
+so, if i run my fastest computer non-stop, it will only take 6,658,969,981,995,408,494,363,561,289,680,424,209,196,855,797,736,955,445,248 years to find a match. bullish!
+
+![](images/skelebro.jpg)
 
 ## setup
 
